@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposito Yndol - Supermercado Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module">
+        // Importaciones de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuración de Firebase
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "TU_API_KEY", authDomain: "TU_AUTH_DOMAIN", projectId: "TU_PROJECT_ID" }; 
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-deposito-yndol';
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        setLogLevel('debug');
+
+        let userId = null;
+        let isAuthReady = false;
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log("Usuario autenticado:", user.uid);
+                userId = user.uid;
+            } else {
+                console.log("Usuario no autenticado, intentando iniciar sesión.");
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Error al iniciar sesión:", error);
+                    userId = crypto.randomUUID(); 
+                }
+            }
+            isAuthReady = true;
+            updateUserIdDisplay(); 
+        });
+
+        // --- ESTRUCTURA DE PRODUCTOS POR CATEGORÍA (AMPLIADA AL MÁXIMO DESDE EL PDF) ---
+        const categorizedProducts = [
+            {
+                categoryName: "Aceite",
+                items: [
+                    { id: 'aceite_0', name: 'Aceite Cañuelas 1,5L Girasol', price: 3200.00 },
+                    { id: 'aceite_1', name: 'Aceite Cañuelas 900ml Girasol', price: 2200.00 },
+                    { id: 'aceite_2', name: 'Aceite Cocinero 1,5L Girasol', price: 3250.00 },
+                    { id: 'aceite_3', name: 'Aceite Cocinero 900ml Girasol', price: 2100.00 },
+                    { id: 'aceite_4', name: 'Aceite Cocinero Mezcla 900ml', price: 1400.00 },
+                    { id: 'aceite_5', name: 'Aceite de oliva MORIXE 500ml', price: 6450.00 },
+                    { id: 'aceite_6', name: 'Aceite Doña Emilia x900ml', price: 1650.00 },
+                    { id: 'aceite_7', name: 'Aceite Gira-Sol 4,5L', price: 7100.00 },
+                    { id: 'aceite_8', name: 'Aceite Legitimo 1,5L', price: 3000.00 },
+                    { id: 'aceite_9', name: 'Aceite Natura 1,5L Girasol', price: 3800.00 },
+                    { id: 'aceite_10', name: 'Aceite Natura 3lts Girasol', price: 7000.00 },
+                    { id: 'aceite_11', name: 'Aceite Natura 5lts Girasol', price: 12800.00 },
+                    { id: 'aceite_12', name: 'Aceite Natura 900ml', price: 2350.00 },
+                    { id: 'aceite_13', name: 'Aceite Natura en aerosol', price: 2700.00 },
+                    { id: 'aceite_14', name: 'Aceite Oliva 1L', price: 6100.00 },
+                    { id: 'aceite_15', name: 'Aceite Oliva 500mL', price: 4200.00 },
+                    { id: 'aceite_16', name: 'Aceite Prados del Sol 5Litros', price: 7600.00 },
+                    { id: 'aceite_17', name: 'Aceite Prados del Sol 900ml', price: 1550.00 },
+                    { id: 'aceite_18', name: 'Aceite Pureza 900ml', price: 2100.00 },
+                    { id: 'aceite_19', name: 'Aceite Verde Oliva 500ml', price: 6050.00 },
+                    { id: 'aceite_20', name: 'Vinagre Blanco Caminito 1L', price: 1000.00 },
+                    { id: 'aceite_21', name: 'Vinagre Manzana Caminito 450mL', price: 1000.00 },
+                    { id: 'aceite_22', name: 'Vinagre de Alcohol 450ml', price: 750.00 },
+                    { id: 'aceite_23', name: 'Vinagre de Alcohol SAN IGNACIO x1L', price: 950.00 },
+                    { id: 'aceite_24', name: 'Vinagre de Manzana Caminito 1L', price: 1800.00 },
+                    { id: 'aceite_25', name: 'Vinagre de Vino 1L', price: 1200.00 },
+                    { id: 'aceite_26', name: 'Vinagre de Vino 450ml', price: 850.00 },
+                    { id: 'aceite_27', name: 'Vinagre de Vino ALCAZAR 1L', price: 1000.00 },
+                    { id: 'aceite_28', name: 'Vinagre de Vino Marvacic x 1L', price: 920.70 },
+                    { id: 'aceite_29', name: 'Vinagre de Vino San Remo 960ml', price: 1350.00 },
+                ]
+            },
+            {
+                categoryName: "Aderezos",
+                items: [
+                    { id: 'aderezo_0', name: 'Aceitunas Verdes Descarosadas 300G', price: 1100.00 },
+                    { id: 'aderezo_1', name: 'Aceto MARVAVIC 250ml', price: 1950.00 },
+                    { id: 'aderezo_2', name: 'Barbacoa Danica 3kg', price: 11000.00 },
+                    { id: 'aderezo_3', name: 'Barbacoa Danica x8gr', price: 69.25 },
+                    { id: 'aderezo_4', name: 'Jugo de Limon 500mL MINERVA', price: 1550.00 },
+                    { id: 'aderezo_5', name: 'Ketchup Danica 50gr', price: 350.00 },
+                    { id: 'aderezo_6', name: 'Ketchup Hellmanns 60gr', price: 550.00 },
+                    { id: 'aderezo_7', name: 'Ketchup Natura 250cc', price: 1100.00 },
+                    { id: 'aderezo_8', name: 'Ketchup Natura 3kg', price: 9500.00 },
+                    { id: 'aderezo_9', name: 'Ketchup Natura 500cc', price: 2050.00 },
+                    { id: 'aderezo_10', name: 'Ketchup Natura x8gr', price: 60.00 },
+                    { id: 'aderezo_11', name: 'Mayonesa Cada Dia 125gr', price: 500.00 },
+                    { id: 'aderezo_12', name: 'Mayonesa Cada Dia 1kg', price: 2400.00 },
+                    { id: 'aderezo_13', name: 'Mayonesa Cada Dia 250gr', price: 750.00 },
+                    { id: 'aderezo_14', name: 'Mayonesa Cada Dia 3kg', price: 6300.00 },
+                    { id: 'aderezo_15', name: 'Mayonesa Cañuelas 125gr', price: 400.00 },
+                    { id: 'aderezo_16', name: 'Mayonesa Hellmanns 118gr', price: 460.00 },
+                    { id: 'aderezo_17', name: 'Mayonesa Hellmanns 237gr', price: 770.00 },
+                    { id: 'aderezo_18', name: 'Mayonesa Hellmanns Ahumada x250gr', price: 1400.00 },
+                    { id: 'aderezo_19', name: 'Mayonesa Hellmanns Ajo x250gr', price: 1400.00 },
+                    { id: 'aderezo_20', name: 'Mayonesa Mayoliva 125cc', price: 900.00 },
+                    { id: 'aderezo_21', name: 'Mayonesa Mayoliva 250ml', price: 1750.00 },
+                    { id: 'aderezo_22', name: 'Mayonesa Natura 1kg', price: 3900.00 },
+                    { id: 'aderezo_23', name: 'Mayonesa Natura 3kg', price: 9700.00 },
+                    { id: 'aderezo_24', name: 'Mayonesa Natura x 125cc', price: 550.00 },
+                    { id: 'aderezo_25', name: 'Mayonesa Natura x500ml', price: 2050.00 },
+                    { id: 'aderezo_26', name: 'Mayonesa Natura x8gr', price: 60.00 },
+                    { id: 'aderezo_27', name: 'Mostaza Danica 60gr', price: 250.00 },
+                    { id: 'aderezo_28', name: 'Mostaza Natura 250cc', price: 750.00 },
+                    { id: 'aderezo_29', name: 'Mostaza Natura 3kg', price: 5400.00 },
+                    { id: 'aderezo_30', name: 'Mostaza Natura x8gr', price: 40.00 },
+                    { id: 'aderezo_31', name: 'Mostaza Savora x60gr', price: 450.00 },
+                    { id: 'aderezo_32', name: 'Pasta Veloce Sabores', price: 2000.00 },
+                    { id: 'aderezo_33', name: 'Salsa Golf Natura 125ml', price: 650.00 },
+                    { id: 'aderezo_34', name: 'Salsa Golf Natura 3kg', price: 10100.00 },
+                    { id: 'aderezo_35', name: 'Salsa Golf Natura x250gr', price: 1050.00 },
+                    { id: 'aderezo_36', name: 'Salsa Golf Natura x8gr', price: 46.09 },
+                ]
+            },
+            {
+                categoryName: "Agua Mineral",
+                items: [
+                    { id: 'aguamin_0', name: 'Agua Benedictino 1,5L', price: 1250.00 },
+                    { id: 'aguamin_1', name: 'Agua Benedictino 2,25L', price: 1600.00 },
+                    { id: 'aguamin_2', name: 'Agua Benedictino 500ml', price: 850.00 },
+                    { id: 'aguamin_3', name: 'Agua Bonaqua 500ml', price: 950.00 },
+                    { id: 'aguamin_4', name: 'Agua Mineral 2,25L San Miguel', price: 3700.00 }, // Precio específico para 2,25L
+                    { id: 'aguamin_5', name: 'Agua Mineral San Miguel 6,5L', price: 1550.00 },
+                    { id: 'aguamin_6', name: 'Agua Nestle 1,5L', price: 1100.00 },
+                    { id: 'aguamin_7', name: 'Pack Agua Mineral Fresh 1,5L', price: 3500.00 },
+                    { id: 'aguamin_8', name: 'Pack Agua Mineral Fresh 600ml', price: 3300.00 },
+                    { id: 'aguamin_9', name: 'Pack Agua Mineral San Miguel x600ml x8', price: 3100.00 },
+                    { id: 'aguamin_10', name: 'Soda Benedictino 500ml', price: 850.00 },
+                    { id: 'aguamin_11', name: 'Soda Bonaqua 500ml', price: 950.00 },
+                    { id: 'aguamin_12', name: 'Villavicencio 1,5L', price: 5800.00 },
+                    { id: 'aguamin_13', name: 'Villavicencio Sport 750ml', price: 10700.00 },
+                ]
+            },
+            {
+                categoryName: "Agua Saborizada",
+                items: [
+                    { id: 'aguasab_0', name: 'Agua Saborizada H2O 1,5L', price: 800.00 },
+                    { id: 'aguasab_1', name: 'Aquarius 1,5L', price: 2250.00 },
+                    { id: 'aguasab_2', name: 'Aquarius 2,25L', price: 2900.00 },
+                    { id: 'aguasab_3', name: 'Aquarius 500ml', price: 1000.00 },
+                    { id: 'aguasab_4', name: 'Awafrut x1', price: 670.00 },
+                    { id: 'aguasab_5', name: 'Botella de Agua Saborizada Fresh', price: 1000.00 },
+                    { id: 'aguasab_6', name: 'Cepita Fresh 500ml', price: 900.00 },
+                    { id: 'aguasab_7', name: 'Pack Agua Saborizada Brio x6', price: 4000.00 },
+                    { id: 'aguasab_8', name: 'Pack Agua Saborizada H2OH 500ml', price: 2800.00 },
+                    { id: 'aguasab_9', name: 'Pack Baggio Fresh 1,5L', price: 4800.00 },
+                    { id: 'aguasab_10', name: 'Pack Fresh 600ml', price: 3700.00 },
+                    { id: 'aguasab_11', name: 'Terma x1350ml', price: 1350.00 },
+                ]
+            },
+            {
+                categoryName: "Alfajores",
+                items: [
+                    { id: 'alfajor_0', name: 'Alfajor MINYO Triple x1', price: 200.00 },
+                    { id: 'alfajor_1', name: 'Alfajor Terrabusi Simple', price: 500.00 },
+                    { id: 'alfajor_2', name: 'Alfajor Terrabusi Triple', price: 1100.00 },
+                    { id: 'alfajor_3', name: 'Alfajor Tita Simple', price: 490.00 },
+                    { id: 'alfajor_4', name: 'Alfajor Fulbito x1', price: 150.00 },
+                    { id: 'alfajor_5', name: 'Alfajor OREO Triple x1', price: 950.00 },
+                    { id: 'alfajor_6', name: 'Alfajor Rasta x1', price: 850.00 },
+                    { id: 'alfajor_7', name: 'Alfajor TANTE Simple x1', price: 100.00 },
+                    { id: 'alfajor_8', name: 'Alfajor TANTE Simple x60', price: 6100.00 },
+                    { id: 'alfajor_9', name: 'Alfajor Triple Minitorta/Bon o Bon', price: 1050.00 },
+                    { id: 'alfajor_10', name: 'Alfajor Turimar Triple x1', price: 280.00 },
+                    { id: 'alfajor_11', name: 'Alfajores Marley', price: 900.00 },
+                    { id: 'alfajor_12', name: 'Alfajores Simples Cofler/Bon o Bon', price: 650.00 },
+                    { id: 'alfajor_13', name: 'Fantoche Simple', price: 450.00 },
+                    { id: 'alfajor_14', name: 'Fantoche Triple x1', price: 650.00 },
+                    { id: 'alfajor_15', name: 'Fulbito Simple x40', price: 5800.00 },
+                    { id: 'alfajor_16', name: 'Genio Triple x1', price: 300.00 },
+                    { id: 'alfajor_17', name: 'Genio Triple x24', price: 6700.00 },
+                    { id: 'alfajor_18', name: 'Guaymallen Simple Fruta x1', price: 250.00 },
+                    { id: 'alfajor_19', name: 'Guaymallen Simple x1', price: 250.00 },
+                    { id: 'alfajor_20', name: 'Guaymallen Simple x40', price: 9300.00 },
+                    { id: 'alfajor_21', name: 'Guaymallen Triple x1', price: 400.00 },
+                    { id: 'alfajor_22', name: 'Guaymallen Triple x24', price: 9300.00 },
+                    { id: 'alfajor_23', name: 'Minyo Triple x24', price: 5000.00 },
+                    { id: 'alfajor_24', name: 'Picnic x1', price: 250.00 },
+                    { id: 'alfajor_25', name: 'Picnic x40', price: 10200.00 },
+                    { id: 'alfajor_26', name: 'Rapsodia Mini Torta x80gr', price: 500.00 },
+                    { id: 'alfajor_27', name: 'Tatin Simple x1', price: 350.00 },
+                    { id: 'alfajor_28', name: 'Tatin Triple x1', price: 650.00 },
+                    { id: 'alfajor_29', name: 'Turimar Triple x24', price: 6400.00 },
+                    { id: 'alfajor_30', name: 'Turron de Mani Fulbito x1', price: 150.00 },
+                    { id: 'alfajor_31', name: 'Vauquita Alfajor de Arroz', price: 450.00 },
+                ]
+            },
+            {
+                categoryName: "Alimentos",
+                items: [
+                    { id: 'alimento_0', name: 'Aceite Legitimo x900ml', price: 1900.00 },
+                    { id: 'alimento_1', name: 'Aceitunas Morixe 300gr', price: 1100.00 },
+                    { id: 'alimento_2', name: 'Alicante Sopa Instantanea', price: 1150.00 },
+                    { id: 'alimento_3', name: 'Almidon de Maiz 400gr', price: 1000.00 },
+                    { id: 'alimento_4', name: 'Arroz APOSTOLES 500grs', price: 761.20 },
+                    { id: 'alimento_5', name: 'Arroz Carogram 500gr', price: 470.00 },
+                    { id: 'alimento_6', name: 'Arroz Dominante 1kg', price: 1160.00 },
+                    { id: 'alimento_7', name: 'Arroz Don Marcos 500gr', price: 680.00 },
+                    { id: 'alimento_8', name: 'Arroz Gallo Oro 500gr', price: 1550.00 },
+                    { id: 'alimento_9', name: 'Arroz Integral x500gr', price: 900.00 },
+                    { id: 'alimento_10', name: 'Arroz OKARA x1kg', price: 950.00 },
+                    { id: 'alimento_11', name: 'Arroz OKITA x500gr', price: 400.00 },
+                    { id: 'alimento_12', name: 'Arroz Tio Carlos 1kg', price: 1570.00 },
+                    { id: 'alimento_13', name: 'Arroz Tio Carlos 500grs', price: 680.00 },
+                    { id: 'alimento_14', name: 'Arroz Tio Carlos Parboil x500gr', price: 1171.50 },
+                    { id: 'alimento_15', name: 'Arvejas en Lata', price: 450.00 },
+                    { id: 'alimento_16', name: 'Atun Desmenuzado Gomes', price: 1600.00 },
+                    { id: 'alimento_17', name: 'Avena Tostex Grano Entero x300gr', price: 1000.00 },
+                    { id: 'alimento_18', name: 'Avena Tostex Instantanea x300gr', price: 1000.00 },
+                    { id: 'alimento_19', name: 'Azucar Perla x1', price: 900.00 },
+                    { id: 'alimento_20', name: 'Batata Dulcor x500gr', price: 1650.00 },
+                    { id: 'alimento_21', name: 'Batata Vainilla Noel x5 kg', price: 11000.00 },
+                    { id: 'alimento_22', name: 'Bizcochuelo Royal', price: 2950.00 },
+                    { id: 'alimento_23', name: 'Bolson Azucar Bellavista', price: 8000.00 },
+                    { id: 'alimento_24', name: 'Caballa 380gr', price: 2350.00 },
+                    { id: 'alimento_25', name: 'Cacao Chocolino x180gr', price: 1450.00 },
+                    { id: 'alimento_26', name: 'Cacao Chocolino x360gr', price: 2900.00 },
+                    { id: 'alimento_27', name: 'Cacao Toddy 180gr', price: 0.00 }, // Precio 0.00 en PDF
+                    { id: 'alimento_28', name: 'Cacao Toddy 360gr', price: 0.00 }, // Precio 0.00 en PDF
+                    { id: 'alimento_29', name: 'Caldo Knorr x12', price: 1500.00 },
+                    { id: 'alimento_30', name: 'Caldo Maggi x6', price: 590.00 },
+                    { id: 'alimento_31', name: 'Chocolatada 7 Dias x200ml', price: 450.00 },
+                    { id: 'alimento_32', name: 'Chocolatada MR CHOCO x200ml', price: 550.00 },
+                    { id: 'alimento_33', name: 'Chocolatada Nescao x200ml', price: 800.00 },
+                    { id: 'alimento_34', name: 'Chocolino Cereal Bolitas', price: 2100.00 },
+                    { id: 'alimento_35', name: 'Chuker Clasico x200ml', price: 1730.00 },
+                    { id: 'alimento_36', name: 'Chuker Clasico x400ml', price: 2570.00 },
+                    { id: 'alimento_37', name: 'Chuker Stevia x200ml', price: 2470.00 },
+                    { id: 'alimento_38', name: 'Coctel de Frutas x820gr', price: 2100.00 },
+                    { id: 'alimento_39', name: 'Crema Chantilly x50gr', price: 1300.00 },
+                    { id: 'alimento_40', name: 'Dulce de Leche MILKAUT 245gr', price: 1700.00 },
+                    { id: 'alimento_41', name: 'Dulce de Leche Milkaut 400gr', price: 2050.00 },
+                    { id: 'alimento_42', name: 'Dulce de Leche Repostero Milkaut 400gr', price: 2350.00 },
+                    { id: 'alimento_43', name: 'Dulce de Leche Serenisima', price: 1950.00 },
+                    { id: 'alimento_44', name: 'Dulce de Leche Tonadita x400gr', price: 1900.00 },
+                    { id: 'alimento_45', name: 'Dulce de Membrillo Estuche x500gr', price: 1800.00 },
+                    { id: 'alimento_46', name: 'Durazno San Remo Mitades 820gr', price: 1400.00 },
+                    { id: 'alimento_47', name: 'Edulcorante Hileret', price: 1810.00 },
+                    { id: 'alimento_48', name: 'Edulcorante Si Diet 200ml', price: 1200.00 },
+                    { id: 'alimento_49', name: 'Edulcorante Si Diet x200gr', price: 940.00 },
+                    { id: 'alimento_50', name: 'Edulcorante Si Diet x500gr', price: 1750.00 },
+                    { id: 'alimento_51', name: 'Edulcorante Si Diet x600gr', price: 2050.00 },
+                    { id: 'alimento_52', name: 'Edulcorante Tuy 200ml', price: 1450.00 },
+                    { id: 'alimento_53', name: 'Edulcorante Tuy Stevia 200ml', price: 2900.00 },
+                    { id: 'alimento_54', name: 'Edulcorante Tuy Stevia x100u', price: 2700.00 },
+                    { id: 'alimento_55', name: 'Edulcorante Tuy Stevia x200u', price: 4700.00 },
+                    { id: 'alimento_56', name: 'Edulcorante Tuy Stevia x50u', price: 1450.00 },
+                    { id: 'alimento_57', name: 'Edulcorante Tuy Sucra x100u', price: 2200.00 },
+                    { id: 'alimento_58', name: 'Edulcorante Tuy Sucra x200u', price: 3850.00 },
+                    { id: 'alimento_59', name: 'Edulcorante Tuy Sucra x50u', price: 1200.00 },
+                    { id: 'alimento_60', name: 'Edulcorante Tuy x100u', price: 2000.00 },
+                    { id: 'alimento_61', name: 'Edulcorante Tuy x200u', price: 3150.00 },
+                    { id: 'alimento_62', name: 'Edulcorante Tuy x50u', price: 1000.00 },
+                    { id: 'alimento_63', name: 'Fideos LA FAVORITA', price: 620.80 },
+                    { id: 'alimento_64', name: 'Fideos La Providencia', price: 670.00 },
+                    { id: 'alimento_65', name: 'Fideos La Providencia Cabello de Angel', price: 980.00 },
+                    { id: 'alimento_66', name: 'Fideos La Providencia MOÑOS', price: 970.00 },
+                    { id: 'alimento_67', name: 'Fideos La Providencia Nido Spaghetti', price: 1180.00 },
+                    { id: 'alimento_68', name: 'Fideos Lucchetti x500gr', price: 870.00 },
+                    { id: 'alimento_69', name: 'Fideos Terrabusi Spaghetti', price: 0.00 }, // Precio 0.00 en PDF
+                    { id: 'alimento_70', name: 'Fideos Yema Dorada', price: 1150.00 },
+                    { id: 'alimento_71', name: 'Flan Vainilla x1', price: 820.00 },
+                    { id: 'alimento_72', name: 'Galletas Criollitas X3', price: 1300.00 },
+                    { id: 'alimento_73', name: 'Galletas Media Tarde', price: 900.00 },
+                    { id: 'alimento_74', name: 'Gelatina Light', price: 900.00 },
+                    { id: 'alimento_75', name: 'Gelatina Sin Sabor', price: 950.00 },
+                    { id: 'alimento_76', name: 'Gelatina x1', price: 800.00 },
+                    { id: 'alimento_77', name: 'Herbo Fun La Virginia x25', price: 1650.00 },
+                    { id: 'alimento_78', name: 'Jugo de Limon 250ml MINERVA', price: 900.00 },
+                    { id: 'alimento_79', name: 'Jugo de Limon 500ml', price: 1450.00 },
+                    { id: 'alimento_80', name: 'Lasagna Matarazzo x400gr', price: 3000.00 },
+                    { id: 'alimento_81', name: 'Lentejas Inalpa Lata x300gr', price: 650.00 },
+                    { id: 'alimento_82', name: 'Levadura Seca x2', price: 750.00 },
+                    { id: 'alimento_83', name: 'Lomito de Atun', price: 1800.00 },
+                    { id: 'alimento_84', name: 'Maizena 220gr', price: 1250.00 },
+                    { id: 'alimento_85', name: 'Mate Cocido LA TRANQUERA x25', price: 1400.00 },
+                    { id: 'alimento_86', name: 'Mate Cocido LA TRANQUERA x50', price: 1900.00 },
+                    { id: 'alimento_87', name: 'Mate Cocido Taragui x25', price: 1040.00 },
+                    { id: 'alimento_88', name: 'Mermelada Dulcor x500gr', price: 1700.00 },
+                    { id: 'alimento_89', name: 'Mermelada Emeth x420gr', price: 900.00 },
+                    { id: 'alimento_90', name: 'Miel', price: 2900.00 },
+                    { id: 'alimento_91', name: 'Nesquik Cacao en Polvo x180gr', price: 1700.00 },
+                    { id: 'alimento_92', name: 'Nesquik Cacao en Polvo x360gr', price: 3150.00 },
+                    { id: 'alimento_93', name: 'Pan de Pancho Casero', price: 500.00 },
+                    { id: 'alimento_94', name: 'Pan de Pancho XL Casero', price: 1400.00 },
+                    { id: 'alimento_95', name: 'Pan Rallado 1kg', price: 1000.00 },
+                    { id: 'alimento_96', name: 'Pastas Giacomo', price: 3470.00 },
+                    { id: 'alimento_97', name: 'Pastas Ramen x70gr', price: 800.00 },
+                    { id: 'alimento_98', name: 'Pate de FOE Paladini', price: 650.00 },
+                    { id: 'alimento_99', name: 'Pate Swift 90gr', price: 550.00 },
+                    { id: 'alimento_100', name: 'Picadillo de Carne Paladini', price: 700.00 },
+                    { id: 'alimento_101', name: 'Picadillo La Blanca Carne', price: 500.00 },
+                    { id: 'alimento_102', name: 'Picadillo Swift Carne', price: 550.00 },
+                    { id: 'alimento_103', name: 'Polenta Noel x490gr', price: 950.00 },
+                    { id: 'alimento_104', name: 'Polenta Prestopronta x490gr', price: 1200.00 },
+                    { id: 'alimento_105', name: 'Polluelo x50', price: 5000.00 },
+                    { id: 'alimento_106', name: 'Postre Royal x75gr', price: 800.00 },
+                    { id: 'alimento_107', name: 'Pure de Papas x125gr MAGGI', price: 1850.00 },
+                    { id: 'alimento_108', name: 'Pure de Papas x125gr MORIXE', price: 1250.00 },
+                    { id: 'alimento_109', name: 'Queso Rallado La Quesera x 40grs', price: 650.00 },
+                    { id: 'alimento_110', name: 'Queso Rallado La Serenisima 35gr', price: 1050.00 },
+                    { id: 'alimento_111', name: 'Queso Rallado Santa Elena', price: 500.00 },
+                    { id: 'alimento_112', name: 'Sal Fina Dos Estrella 500gr', price: 650.00 },
+                    { id: 'alimento_113', name: 'Sal Gruesa DOS ESTRELLAS', price: 1250.00 },
+                    { id: 'alimento_114', name: 'Salsa 4 Quesos Alicante', price: 1350.00 },
+                    { id: 'alimento_115', name: 'Salsa Blanca Alicante', price: 1000.00 },
+                    { id: 'alimento_116', name: 'Salsa Champignon Alicante', price: 2150.00 },
+                    { id: 'alimento_117', name: 'Salsa Lista x340gr', price: 1000.00 },
+                    { id: 'alimento_118', name: 'Taragui Te Boldo x25', price: 1500.00 },
+                    { id: 'alimento_119', name: 'Taragui Te Manzanilla x25', price: 1250.00 },
+                    { id: 'alimento_120', name: 'Taragui Te Tilo x25', price: 2000.00 },
+                    { id: 'alimento_121', name: 'Taragui Te x50', price: 1550.00 },
+                    { id: 'alimento_122', name: 'Te Green Hills Verde', price: 1250.00 },
+                    { id: 'alimento_123', name: 'Te La Virginia Boldo x25', price: 1450.00 },
+                    { id: 'alimento_124', name: 'Te La Virginia Canela x20', price: 1300.00 },
+                    { id: 'alimento_125', name: 'Te La Virginia Durazno x25', price: 1250.00 },
+                    { id: 'alimento_126', name: 'Te La Virginia Frutilla x25', price: 1300.00 },
+                    { id: 'alimento_127', name: 'Te La Virginia Limon x20', price: 1250.00 },
+                    { id: 'alimento_128', name: 'Te La Virginia Manzanilla c/Anis x25', price: 1400.00 },
+                    { id: 'alimento_129', name: 'Te La Virginia Manzanilla x25', price: 1150.00 },
+                    { id: 'alimento_130', name: 'Te La Virginia Tilo x25', price: 1950.00 },
+                    { id: 'alimento_131', name: 'Te La Virginia x100', price: 2800.00 },
+                    { id: 'alimento_132', name: 'Te La Virginia x25', price: 750.00 },
+                    { id: 'alimento_133', name: 'Te La Virginia x50', price: 1450.00 },
+                    { id: 'alimento_134', name: 'Te Rosamonte x25', price: 550.00 },
+                    { id: 'alimento_135', name: 'Te San Remo x25', price: 500.00 },
+                    { id: 'alimento_136', name: 'Te Taragui x25', price: 800.00 },
+                    { id: 'alimento_137', name: 'Te Verde La Virginia', price: 1400.00 },
+                    { id: 'alimento_138', name: 'Tutuca x1', price: 80.00 },
+                    { id: 'alimento_139', name: 'Vitina 250gr', price: 1250.00 },
+                    { id: 'alimento_140', name: 'Vitina 500gr', price: 2150.00 },
+                    { id: 'alimento_141', name: 'Yerba Litoral x25', price: 950.00 },
+                    { id: 'alimento_142', name: 'Yerba Litoral x50', price: 1900.00 },
+                    { id: 'alimento_143', name: 'Yerba Mate San Remo x25', price: 650.00 },
+                    { id: 'alimento_144', name: 'Yerba Mate Taragui x25', price: 1050.00 },
+                    { id: 'alimento_145', name: 'Yerba Mate Taragui x50', price: 2650.00 },
+                    { id: 'alimento_146', name: 'YerVita x25', price: 1150.00 },
+                ]
+            },
+            {
+                categoryName: "Aperitivo",
+                items: [
+                    { id: 'aperitivo_0', name: 'Absolut Vodka', price: 19550.00 },
+                    { id: 'aperitivo_1', name: 'Amarula Cofee x750ml', price: 27000.00 },
+                    { id: 'aperitivo_2', name: 'Amarula x750ml', price: 22000.00 },
+                    { id: 'aperitivo_3', name: 'Anana Frizz La Quintana 720ml', price: 2000.00 },
+                    { id: 'aperitivo_4', name: 'Anis 8 Hermanos', price: 5000.00 },
+                    { id: 'aperitivo_5', name: 'Aperitivo Americano Manon 950ml', price: 1850.00 },
+                    { id: 'aperitivo_6', name: 'Aperol', price: 7050.00 },
+                    { id: 'aperitivo_7', name: 'Bacardi Carta Blanca', price: 16550.00 },
+                    { id: 'aperitivo_8', name: 'Bacardi Carta Oro', price: 16100.00 },
+                    { id: 'aperitivo_9', name: 'Beefeater Gin x700ml', price: 17300.00 },
+                    { id: 'aperitivo_10', name: 'Beefeater Pink Gin x700ml', price: 20500.00 },
+                    { id: 'aperitivo_11', name: 'Campari 750ml', price: 7750.00 },
+                    { id: 'aperitivo_12', name: 'Carpano Rosso', price: 4600.00 },
+                    { id: 'aperitivo_13', name: 'Champagne Bianchi', price: 4850.00 },
+                    { id: 'aperitivo_14', name: 'Champagne DADA Orange Bitter', price: 5500.00 },
+                    { id: 'aperitivo_15', name: 'Champagne Dante Robino', price: 3000.00 },
+                    { id: 'aperitivo_16', name: 'Champagne MUMM', price: 5300.00 },
+                    { id: 'aperitivo_17', name: 'Champagne Navarro Correas x750ml', price: 7750.00 },
+                    { id: 'aperitivo_18', name: 'Champagne Nave Robino', price: 3000.00 },
+                    { id: 'aperitivo_19', name: 'Champagne Renaissance', price: 3450.00 },
+                    { id: 'aperitivo_20', name: 'Champagne Renaissance Du', price: 3450.00 }, // Asumiendo mismo precio
+                    { id: 'aperitivo_21', name: 'Chivas Regal 12 Años x700ml', price: 39800.00 },
+                    { id: 'aperitivo_22', name: 'Cordero con Piel de Lobo Malbec', price: 3500.00 },
+                    { id: 'aperitivo_23', name: 'Dr Lemon x1', price: 2200.00 },
+                    { id: 'aperitivo_24', name: 'Estuche Gin Heredero + Copa', price: 32000.00 },
+                    { id: 'aperitivo_25', name: 'Estuche Gin Heredero + Gorra', price: 32000.00 },
+                    { id: 'aperitivo_26', name: 'Estuche Gin Heredero Family x4', price: 53000.00 },
+                    { id: 'aperitivo_27', name: 'Estuche Gin Heredero Rosa + Vasos', price: 32000.00 },
+                    { id: 'aperitivo_28', name: 'Estuche Ramazzotti', price: 8000.00 },
+                    { id: 'aperitivo_29', name: 'F-nandito Doble', price: 5000.00 },
+                    { id: 'aperitivo_30', name: 'Fernet Buhero', price: 7000.00 },
+                    { id: 'aperitivo_31', name: 'Fernet Capri x700ml', price: 2550.00 },
+                    { id: 'aperitivo_32', name: 'Frizze 1L', price: 2100.00 },
+                    { id: 'aperitivo_33', name: 'Gancia 1,125ml', price: 5300.00 },
+                    { id: 'aperitivo_34', name: 'Gancia 450ml', price: 1900.00 },
+                    { id: 'aperitivo_35', name: 'Gancia 950ml', price: 4800.00 },
+                    { id: 'aperitivo_36', name: 'Gancia Hibiscus Naranja', price: 5630.00 },
+                    { id: 'aperitivo_37', name: 'Gin Bombay x750ml', price: 21100.00 },
+                    { id: 'aperitivo_38', name: 'Gin Gordon\'s Rosa', price: 11950.00 }, // Hay otra categoría "Gin" más abajo
+                    { id: 'aperitivo_39', name: 'Granadina Cusenier', price: 3100.00 },
+                    { id: 'aperitivo_40', name: 'Granadina Rolme', price: 2150.00 },
+                    { id: 'aperitivo_41', name: 'Grappa Valle Viejo x950ml', price: 5900.00 },
+                    { id: 'aperitivo_42', name: 'Hodlmoser 750ml', price: 20700.00 },
+                    { id: 'aperitivo_43', name: 'Jagermeister', price: 29000.00 },
+                    { id: 'aperitivo_44', name: 'Jameson x700ml', price: 23000.00 },
+                    { id: 'aperitivo_45', name: 'Legui Licor Fino x750ml', price: 4100.00 },
+                    { id: 'aperitivo_46', name: 'Licor Bailey', price: 23443.84 },
+                    { id: 'aperitivo_47', name: 'Licor TRES PLUMAS Cafe al Coñac', price: 3700.00 },
+                    { id: 'aperitivo_48', name: 'Malibu x750ml', price: 11600.00 },
+                    { id: 'aperitivo_49', name: 'Marcela 950ml', price: 3150.00 },
+                    { id: 'aperitivo_50', name: 'New Style Cafe al Coñac x1L', price: 3300.00 },
+                    { id: 'aperitivo_51', name: 'New Style RON Blanco', price: 2650.00 },
+                    { id: 'aperitivo_52', name: 'OMBU Caña', price: 3050.00 },
+                    { id: 'aperitivo_53', name: 'Pack Frizze Lata', price: 8100.00 },
+                    { id: 'aperitivo_54', name: 'Petaca Tres Plumas Cafe al Coñac x200ml', price: 1200.00 }, // Hay categoría "Petaca"
+                    { id: 'aperitivo_55', name: 'Petaca Whisky Gloucester x200ml', price: 1100.00 },
+                    { id: 'aperitivo_56', name: 'Petakon Petaca Whisky x400 ml', price: 1240.00 },
+                    { id: 'aperitivo_57', name: 'Promo Fernet', price: 12500.00 }, // No especifica marca
+                    { id: 'aperitivo_58', name: 'Promo Gin Brighton', price: 5390.00 },
+                    { id: 'aperitivo_59', name: 'Pulpa de Tomate de la Huerta x520gr', price: 580.00 }, // Producto de Salsas, movido a su categoría
+                    { id: 'aperitivo_60', name: 'Ron Coco Bongo + Vaso', price: 26000.00 },
+                    { id: 'aperitivo_61', name: 'Ron Coco Bongo x750ml', price: 8200.00 },
+                    { id: 'aperitivo_62', name: 'Ron Havanna Blanco', price: 11300.00 },
+                    { id: 'aperitivo_63', name: 'Ron Havanna Dorado', price: 11900.00 },
+                    { id: 'aperitivo_64', name: 'San Telmo Dulce', price: 3360.00 },
+                    { id: 'aperitivo_65', name: 'Sidra 1930', price: 3500.00 }, // Duplicado, mismo precio
+                    { id: 'aperitivo_66', name: 'Sidra 1930 x750ml', price: 3500.00 },
+                    { id: 'aperitivo_67', name: 'Sidra del Valle', price: 1850.00 },
+                    { id: 'aperitivo_68', name: 'Sidra Farruca x1', price: 1617.00 },
+                    { id: 'aperitivo_69', name: 'Sidra La Farruca', price: 9700.00 }, // Pack o botella grande?
+                    { id: 'aperitivo_70', name: 'Tres Plumas Licor Seco x930ml', price: 3900.00 },
+                    { id: 'aperitivo_71', name: 'Vodka Saborizado New Style', price: 2850.00 },
+                    { id: 'aperitivo_72', name: 'Whisky Famous Grouse Finest', price: 21350.00 },
+                    { id: 'aperitivo_73', name: 'Whisky White Horse', price: 12200.00 },
+                ]
+            },
+            {
+                categoryName: "Azucar",
+                items: [
+                    { id: 'azucar_0', name: 'Azucar Ledesma 1kg', price: 1000.00 },
+                    { id: 'azucar_1', name: 'Bolson Azucar Perla 1kg', price: 7700.00 }, // Esto es un bolsón, no 1kg
+                    { id: 'azucar_2', name: 'Bolson de Azucar Ivana 1kg', price: 7200.00 },// Esto es un bolsón
+                    { id: 'azucar_3', name: 'Bolson de Azucar Ledesma', price: 9700.00 },// Esto es un bolsón
+                    { id: 'azucar_4', name: 'Bolson de Azucar Salvador', price: 6500.00 },// Esto es un bolsón
+                    { id: 'azucar_5', name: 'Caja 1000 Sobres Azucar Ledezma', price: 15000.00 },
+                    { id: 'azucar_6', name: 'Paquete Azucar Salvador Individual', price: 800.00 },
+                    { id: 'azucar_7', name: 'Sobre Azucar Individual Ledezma', price: 20.00 },
+                ]
+            },
+            {
+                categoryName: "Bebida Hidratante",
+                items: [
+                    { id: 'bebhid_0', name: 'Pack de Agua Mineral Eco 500ml', price: 7200.00 },
+                    { id: 'bebhid_1', name: 'Pack Gatorade 500ml', price: 5100.00 },
+                    { id: 'bebhid_2', name: 'Pack Gatorade 750ml', price: 9300.00 },
+                    { id: 'bebhid_3', name: 'Powerade 500ml', price: 1450.00 },
+                    { id: 'bebhid_4', name: 'Powerade 995ml', price: 2150.00 },
+                    { id: 'bebhid_5', name: 'Suerox x630ml', price: 2000.00 },
+                ]
+            },
+            {
+                categoryName: "Cafe", // Cate en PDF
+                items: [
+                    { id: 'cafe_0', name: 'Cafe Arlistan Instantaneo', price: 2200.00 },
+                    { id: 'cafe_1', name: 'Cafe Bonafide Saquito', price: 3000.00 },
+                    { id: 'cafe_2', name: 'Cafe Dolca Regular x50gr', price: 3200.00 },
+                    { id: 'cafe_3', name: 'Cafe Doypack Dolca Suave x100gr', price: 3250.00 },
+                    { id: 'cafe_4', name: 'Cafe en Saquito La Virginia 20 x 5gr', price: 3700.00 },
+                    { id: 'cafe_5', name: 'Cafe en Saquitos Cabrales', price: 3150.00 },
+                    { id: 'cafe_6', name: 'Cafe Instantaneo CABRALES 110gr', price: 2950.00 },
+                    { id: 'cafe_7', name: 'Cafe Instantaneo Dolca Frasco x100gr', price: 3850.00 },
+                    { id: 'cafe_8', name: 'Cafe Instantaneo Frasco La Morenita 100gr', price: 3550.00 }, // PDF tiene dos entradas
+                    { id: 'cafe_9', name: 'Cafe Instantaneo Frasco La Morenita 170gr', price: 5650.00 }, // Asumiendo el segundo precio para el tamaño mayor
+                    { id: 'cafe_10', name: 'Cafe Instantaneo Frasco La Virginia x100gr', price: 3700.00 },
+                    { id: 'cafe_11', name: 'Cafe Instantaneo Frasco La Virginia x170gr', price: 5800.00 },
+                    { id: 'cafe_12', name: 'Cafe Instantaneo La Morenita x100gr Doypack', price: 3250.00 },
+                    { id: 'cafe_13', name: 'Cafe Instantaneo La Morenita x170gr Doypack', price: 4900.00 },
+                    { id: 'cafe_14', name: 'Cafe Instantaneo La Virginia x100gr Doypack', price: 3250.00 },
+                    { id: 'cafe_15', name: 'Cafe Instantaneo La Virginia x170gr Doypack', price: 5850.00 },
+                    { id: 'cafe_16', name: 'Cafe La Virginia Tostado 250gr', price: 6750.00 },
+                    { id: 'cafe_17', name: 'Cafe La Virginia Tostado 500gr', price: 12850.00 },
+                    { id: 'cafe_18', name: 'Cafe Molido La Morenita x250gr', price: 4000.00 },
+                    { id: 'cafe_19', name: 'Cafe Molido La Morenita x500gr', price: 8550.00 },
+                    { id: 'cafe_20', name: 'Cafe Molido Tostado La Morenita MAS', price: 4550.00 },
+                    { id: 'cafe_21', name: 'Cafe Molido Tostado MAS 250gr', price: 4600.00 },
+                    { id: 'cafe_22', name: 'Cafe Torrado Bonafide 250gr', price: 3850.00 },
+                    { id: 'cafe_23', name: 'Cafe Torrado Bonafide 500gr', price: 4750.00 },
+                    { id: 'cafe_24', name: 'Cafe Torrado CABRALES 125gr', price: 2400.00 },
+                    { id: 'cafe_25', name: 'Cafe Torrado CABRALES 250gr', price: 4800.00 },
+                    { id: 'cafe_26', name: 'Cafe Torrado CABRALES 500gr', price: 7550.00 },
+                    { id: 'cafe_27', name: 'Cafe Torrado La Virginia 250gr', price: 4300.00 },
+                    { id: 'cafe_28', name: 'Cafe Torrado La Virginia 500gr', price: 8650.00 },
+                    { id: 'cafe_29', name: 'Cafe Tostado Cabrales x250gr', price: 13200.00 },
+                    { id: 'cafe_30', name: 'Cafe Tostado Instantaneo La Virginia', price: 6650.00 }, // No especifica tamaño
+                    { id: 'cafe_31', name: 'Cafe Tostado Molido SUPER CABRALES', price: 13300.00 }, // No especifica tamaño
+                    { id: 'cafe_32', name: 'Dolca Doypack x170gr', price: 5800.00 },
+                    { id: 'cafe_33', name: 'Dolca Suave Frasco x170gr', price: 7050.00 },
+                    { id: 'cafe_34', name: 'El Pocillo Malta Cafe 115gr', price: 1850.00 },
+                    { id: 'cafe_35', name: 'La Morenita Cafe en Saquito 20x5gr', price: 2950.00 },
+                ]
+            },
+            {
+                categoryName: "Cajon de Cerveza",
+                items: [
+                    { id: 'cajcerveza_0', name: 'Cajon de Cerveza Andes', price: 24000.00 },
+                    { id: 'cajcerveza_1', name: 'Cajon de Quilmes Bajo 0', price: 22000.00 },
+                    { id: 'cajcerveza_2', name: 'Cajon Quilmes Clasica 1L', price: 25000.00 },
+                    { id: 'cajcerveza_3', name: 'Cajon Stella Artois', price: 27000.00 },
+                    { id: 'cajcerveza_4', name: 'Cajon de Andes Origen IPA', price: 30000.00 }, // Moviendo de Cerveza general
+                    { id: 'cajcerveza_5', name: 'Cajon de Cerveza Iguana', price: 20000.00 },// Moviendo de Cerveza general
+                    { id: 'cajcerveza_6', name: 'Cajon Mitad Andes y Mitad Quilmes', price: 26700.00 },// Moviendo de Cerveza general
+                ]
+            },
+            {
+                categoryName: "Cerveza", // Botellas y formatos especiales
+                items: [
+                    { id: 'cerveza_0', name: 'Barril Heineken', price: 34800.00 },
+                    { id: 'cerveza_1', name: 'Botella de Cerveza Andes', price: 2200.00 },
+                    { id: 'cerveza_2', name: 'Cerveza APA Imperial', price: 1416.67 }, // Lata o botella?
+                    { id: 'cerveza_3', name: 'Cerveza Apolo Plastica', price: 8000.00 }, // Pack o botella grande?
+                    { id: 'cerveza_4', name: 'Corona 330cc', price: 1500.00 },
+                    { id: 'cerveza_5', name: 'Corona 710cc', price: 3000.00 },
+                    { id: 'cerveza_6', name: 'Pack Andes Origen', price: 6000.00 }, // Latas
+                    { id: 'cerveza_7', name: 'Pack Brahma 710ml Dorada', price: 11000.00 },
+                    { id: 'cerveza_8', name: 'Pack Budweiser 473ml', price: 5800.00 },
+                    { id: 'cerveza_9', name: 'Pack Budweiser 710cc x 4', price: 8000.00 },
+                    { id: 'cerveza_10', name: 'Pack Cerveza 361', price: 7500.00 }, // Latas
+                    { id: 'cerveza_11', name: 'Pack Cerveza 361 de 1,5L', price: 9800.00 },
+                    { id: 'cerveza_12', name: 'Pack Laton Quilmes 710ml', price: 7500.00 },
+                    { id: 'cerveza_13', name: 'Pack Miller 710ml', price: 11500.00 },
+                    { id: 'cerveza_14', name: 'Pack Schneider 710ml', price: 12000.00 },
+                    { id: 'cerveza_15', name: 'Pack Stella Artois 710ml', price: 8000.00 },
+                    { id: 'cerveza_16', name: 'Patagonia 710cc', price: 2500.00 },
+                ]
+            },
+            {
+                categoryName: "Cerveza 473ml", // Sub-categoría de latas
+                items: [
+                    { id: 'cerveza473_0', name: 'Botella de Bajo Cero', price: 2000.00 }, // Es botella o se refiere a pack? Asumiendo botella.
+                    { id: 'cerveza473_1', name: 'Pack Andes 473ml', price: 6000.00 },
+                    { id: 'cerveza473_2', name: 'Pack Brahma 473ml', price: 6600.00 },
+                    { id: 'cerveza473_3', name: 'Pack Cerveza Aconcagua 475ml', price: 6100.00 },
+                    { id: 'cerveza473_4', name: 'Pack Lata 361', price: 5600.00 },
+                    { id: 'cerveza473_5', name: 'Pack Quilmes 473cc Lata', price: 6000.00 },
+                    { id: 'cerveza473_6', name: 'Pack Quilmes S/Alcohol 473ml', price: 7000.00 },
+                    { id: 'cerveza473_7', name: 'Pack Quilmes Stout 473ml', price: 6400.00 },
+                    { id: 'cerveza473_8', name: 'Patagonia 473cc', price: 8000.00 }, // Pack o unidad? Precio alto para unidad. Asumiendo pack.
+                    { id: 'cerveza473_9', name: 'Porron Quilmes 340ml', price: 1100.00 },
+                    { id: 'cerveza473_10', name: 'Promo Lata + Quilmes', price: 24000.00 }, // Muy genérico
+                    { id: 'cerveza473_11', name: 'Promo Latas + Andes', price: 22000.00 }, // Muy genérico
+                    { id: 'cerveza473_12', name: 'Schneider 473ml', price: 5100.00 }, // Pack
+                ]
+            },
+            {
+                categoryName: "Chocolates",
+                items: [
+                    { id: 'chocolate_0', name: 'Bananita Dolca x1', price: 330.00 },
+                    { id: 'chocolate_1', name: 'Bananita Dolca x14gr', price: 210.00 },
+                    { id: 'chocolate_2', name: 'Bombon Bel x50un', price: 3800.00 },
+                    { id: 'chocolate_3', name: 'Bombon DANCING x50', price: 5500.00 },
+                    { id: 'chocolate_4', name: 'Bombon Milka x13u', price: 4400.00 },
+                    { id: 'chocolate_5', name: 'Bon o Bon x1', price: 270.00 },
+                    { id: 'chocolate_6', name: 'Bonafide Choco Mani x30gr', price: 450.00 },
+                    { id: 'chocolate_7', name: 'Bonafide Choco Mani x90gr', price: 1200.00 },
+                    { id: 'chocolate_8', name: 'Caja Bombon Azul/Marron', price: 7500.00 }, // Genérico
+                    { id: 'chocolate_9', name: 'Caja de Bon o Bon', price: 11000.00 },
+                    { id: 'chocolate_10', name: 'Celofan Misky x25gr', price: 650.00 },
+                    { id: 'chocolate_11', name: 'Chocolate Aguila Naranjitas 100gr', price: 5050.00 },
+                    { id: 'chocolate_12', name: 'Chocolate en Taza Aguila x100gr', price: 3350.00 },
+                    { id: 'chocolate_13', name: 'Chocolate en Taza Aguila x150gr', price: 5900.00 },
+                    { id: 'chocolate_14', name: 'Chocolate en Taza Alteza x90gr', price: 1400.00 },
+                    { id: 'chocolate_15', name: 'Chocolate en Taza Misky x100gr', price: 2050.00 },
+                    { id: 'chocolate_16', name: 'Chocolatin Georgalos/Misky X1', price: 250.00 },
+                    { id: 'chocolate_17', name: 'Choko Bomb', price: 750.00 },
+                    { id: 'chocolate_18', name: 'Cofler Aireado x27gr', price: 1350.00 },
+                    { id: 'chocolate_19', name: 'Cofler Aireado x55gr', price: 2550.00 },
+                    { id: 'chocolate_20', name: 'Cofler Macizo x55gr', price: 1900.00 },
+                    { id: 'chocolate_21', name: 'Hamlet Bombon Leche x30u', price: 8400.00 },
+                    { id: 'chocolate_22', name: 'Hamlet x1', price: 550.00 },
+                    { id: 'chocolate_23', name: 'Huevo Kinder x1', price: 1750.00 },
+                    { id: 'chocolate_24', name: 'Kinder Joy', price: 1450.00 },
+                    { id: 'chocolate_25', name: 'Mani c/Chocolate MANDUVI', price: 2450.00 },
+                    { id: 'chocolate_26', name: 'Mumu Kids x1', price: 350.00 },
+                    { id: 'chocolate_27', name: 'Oblea Arcor 20gr', price: 1550.00 }, // Pack? Precio alto para 1 unidad
+                    { id: 'chocolate_28', name: 'Obleas Rellenas TyM x1', price: 300.00 },
+                    { id: 'chocolate_29', name: 'Sapito x1', price: 160.00 },
+                    { id: 'chocolate_30', name: 'Toblerone Leche x100gr', price: 5500.00 },
+                    { id: 'chocolate_31', name: 'Vizzio 35gr', price: 1400.00 },
+                    { id: 'chocolate_32', name: 'Vizzio 45gr', price: 1750.00 },
+                    { id: 'chocolate_33', name: 'Vizzio 50gr', price: 1700.00 },
+                    { id: 'chocolate_34', name: 'Vizzio 85gr', price: 2050.00 },
+                ]
+            },
+            {
+                categoryName: "Cigarrillos",
+                items: [
+                    { id: 'cigarrillo_0', name: 'Camel 11', price: 2700.00 },
+                    { id: 'cigarrillo_1', name: 'Camel 20 Box', price: 4500.00 },
+                    { id: 'cigarrillo_2', name: 'Camel 20 Comun', price: 4200.00 },
+                    { id: 'cigarrillo_3', name: 'Camel Legend 20 Box', price: 2400.00 },
+                    { id: 'cigarrillo_4', name: 'Carton Cigarillo Corona', price: 10000.00 },
+                    { id: 'cigarrillo_5', name: 'Carton de Kiel', price: 11300.00 },
+                    { id: 'cigarrillo_6', name: 'Carton de Kiel Box', price: 11300.00 },
+                    { id: 'cigarrillo_7', name: 'Carton de Master', price: 13000.00 },
+                    { id: 'cigarrillo_8', name: 'Carton de Red Point 20 Comun', price: 14600.00 },
+                    { id: 'cigarrillo_9', name: 'Carton Dolchester', price: 12600.00 },
+                    { id: 'cigarrillo_10', name: 'Carton Liverpool', price: 12600.00 },
+                    { id: 'cigarrillo_11', name: 'Carton Master Box', price: 13000.00 },
+                    { id: 'cigarrillo_12', name: 'Carton Melbourne', price: 10000.00 },
+                    { id: 'cigarrillo_13', name: 'Carton Mill', price: 10600.00 },
+                    { id: 'cigarrillo_14', name: 'Carton Red Point 10', price: 8500.00 },
+                    { id: 'cigarrillo_15', name: 'Carton Red Point 20 Box', price: 13500.00 },
+                    { id: 'cigarrillo_16', name: 'Carton Red Point On', price: 15300.00 },
+                    { id: 'cigarrillo_17', name: 'Carton West', price: 13000.00 },
+                    { id: 'cigarrillo_18', name: 'Chester 12 Comun', price: 1600.00 },
+                    { id: 'cigarrillo_19', name: 'Chester 12 Convertible', price: 1900.00 },
+                    { id: 'cigarrillo_20', name: 'Chester 20 Comun', price: 2700.00 },
+                    { id: 'cigarrillo_21', name: 'Chester 20 Convertible BOX', price: 3150.00 },
+                    { id: 'cigarrillo_22', name: 'Chester 20 Convertible Comun', price: 2700.00 },
+                    { id: 'cigarrillo_23', name: 'Chester 20 Uva', price: 3150.00 },
+                    { id: 'cigarrillo_24', name: 'Corona Cigarillo 20', price: 1000.00 },
+                    { id: 'cigarrillo_25', name: 'Dolchester 20', price: 1260.00 },
+                    { id: 'cigarrillo_26', name: 'Filtro OCB Mentol', price: 1300.00 },
+                    { id: 'cigarrillo_27', name: 'Filtro OCB Organico', price: 1300.00 },
+                    { id: 'cigarrillo_28', name: 'Filtro OCB Regular', price: 1050.00 },
+                    { id: 'cigarrillo_29', name: 'Filtro OCB Slim', price: 1100.00 },
+                    { id: 'cigarrillo_30', name: 'Filtro OCB Slim Long', price: 1150.00 },
+                    { id: 'cigarrillo_31', name: 'Filtro OCB Virgin Slim', price: 1500.00 },
+                    { id: 'cigarrillo_32', name: 'Harmony 20 Dorado/Rojo', price: 2700.00 },
+                    { id: 'cigarrillo_33', name: 'Kiel 20', price: 1130.00 },
+                    { id: 'cigarrillo_34', name: 'Lucky 12 Comun', price: 2350.00 },
+                    { id: 'cigarrillo_35', name: 'Lucky 12 Convertible', price: 2400.00 },
+                    { id: 'cigarrillo_36', name: 'Lucky 12 Sandia', price: 2700.00 },
+                    { id: 'cigarrillo_37', name: 'Lucky 20 Box', price: 3950.00 },
+                    { id: 'cigarrillo_38', name: 'Lucky 20 Comun', price: 3500.00 },
+                    { id: 'cigarrillo_39', name: 'Lucky 20 Convertible Box', price: 3950.00 },
+                    { id: 'cigarrillo_40', name: 'Lucky 20 Convertible Comun', price: 3550.00 },
+                    { id: 'cigarrillo_41', name: 'Lucky 20 Menta-Mentol', price: 4500.00 },
+                    { id: 'cigarrillo_42', name: 'Lucky 20 Sandia', price: 4500.00 },
+                    { id: 'cigarrillo_43', name: 'Lucky 20 Silver', price: 3550.00 },
+                    { id: 'cigarrillo_44', name: 'Lucky 20 Uva', price: 4500.00 },
+                    { id: 'cigarrillo_45', name: 'Lucky Origen 10', price: 1250.00 },
+                    { id: 'cigarrillo_46', name: 'Lucky Origen 10 Convertible', price: 1450.00 },
+                    { id: 'cigarrillo_47', name: 'Lucky Origen Convertible 20 Box', price: 2500.00 },
+                    { id: 'cigarrillo_48', name: 'Lucky Origen Convertible 20 Comun', price: 2150.00 },
+                    { id: 'cigarrillo_49', name: 'Lucky Origen Red 20 Box', price: 2350.00 },
+                    { id: 'cigarrillo_50', name: 'Lucky Origen Red 20 Comun', price: 2000.00 },
+                    { id: 'cigarrillo_51', name: 'Malboro 12 Comun', price: 2600.00 },
+                    { id: 'cigarrillo_52', name: 'Malboro 12 Uva', price: 2600.00 },
+                    { id: 'cigarrillo_53', name: 'Malboro 20 Box', price: 4250.00 },
+                    { id: 'cigarrillo_54', name: 'Malboro 20 Comun', price: 3900.00 },
+                    { id: 'cigarrillo_55', name: 'Malboro 20 Convertible', price: 4250.00 },
+                    { id: 'cigarrillo_56', name: 'Malboro 20 Crafted Convertible Box', price: 2100.00 },
+                    { id: 'cigarrillo_57', name: 'Malboro 20 Crafted Sandia', price: 2100.00 },
+                    { id: 'cigarrillo_58', name: 'Malboro 20 Gold', price: 4250.00 },
+                    { id: 'cigarrillo_59', name: 'Malboro 20 Sandia', price: 4250.00 },
+                    { id: 'cigarrillo_60', name: 'Malboro 20 Tres Capsulas', price: 4250.00 },
+                    { id: 'cigarrillo_61', name: 'Malboro 20 Uva', price: 4250.00 },
+                    { id: 'cigarrillo_62', name: 'Malboro Crafted 20 Azul', price: 1800.00 },
+                    { id: 'cigarrillo_63', name: 'Malboro Crafted 20 Box', price: 2100.00 },
+                    { id: 'cigarrillo_64', name: 'Malboro Crafted 20 Comun', price: 1800.00 },
+                    { id: 'cigarrillo_65', name: 'Malboro Crafted 20 Convertible Comun', price: 1800.00 },
+                    { id: 'cigarrillo_66', name: 'Maquina p/Armar OCB', price: 4700.00 },
+                    { id: 'cigarrillo_67', name: 'Master 20 Comun', price: 1300.00 },
+                    { id: 'cigarrillo_68', name: 'Melbourne 20', price: 1000.00 },
+                    { id: 'cigarrillo_69', name: 'Mill 20', price: 1100.00 },
+                    { id: 'cigarrillo_70', name: 'Papelillo de Celulosa', price: 700.00 },
+                    { id: 'cigarrillo_71', name: 'Papelillo Guarani x50', price: 250.00 },
+                    { id: 'cigarrillo_72', name: 'Papelillo Guarani x75', price: 300.00 },
+                    { id: 'cigarrillo_73', name: 'Papelillo OCB Bamboo', price: 650.00 },
+                    { id: 'cigarrillo_74', name: 'Papelillo OCB Negro', price: 850.00 },
+                    { id: 'cigarrillo_75', name: 'Parliament 20', price: 4800.00 },
+                    { id: 'cigarrillo_76', name: 'Parliament Slim 20', price: 4800.00 },
+                    { id: 'cigarrillo_77', name: 'Philip 12 Comun', price: 2250.00 },
+                    { id: 'cigarrillo_78', name: 'Philip 12 Convertible', price: 2250.00 },
+                    { id: 'cigarrillo_79', name: 'Philip 20 Box', price: 3750.00 },
+                    { id: 'cigarrillo_80', name: 'Philip 20 Comun', price: 3350.00 },
+                    { id: 'cigarrillo_81', name: 'Philip 20 Convertible', price: 3750.00 },
+                    { id: 'cigarrillo_82', name: 'Red Point 10', price: 850.00 },
+                    { id: 'cigarrillo_83', name: 'Red Point 20 Box', price: 1350.00 },
+                    { id: 'cigarrillo_84', name: 'Red Point 20 Comun', price: 1460.00 },
+                    { id: 'cigarrillo_85', name: 'Red Point 20 Convertible', price: 1530.00 },
+                    { id: 'cigarrillo_86', name: 'Rothman 20 Convertible', price: 1650.00 },
+                    { id: 'cigarrillo_87', name: 'Rothman 20 Rojo', price: 1700.00 },
+                ]
+            },
+            {
+                categoryName: "Condimentos",
+                items: [
+                    { id: 'condimento_0', name: 'Adobo INDIAS x25gr', price: 400.00 },
+                    { id: 'condimento_1', name: 'Aji Alicante', price: 600.00 },
+                    { id: 'condimento_2', name: 'Aji Molido INDIAS', price: 450.00 },
+                    { id: 'condimento_3', name: 'Aji Molido Reina Mora x25gr', price: 450.00 },
+                    { id: 'condimento_4', name: 'Ajo Alicante', price: 1050.00 },
+                    { id: 'condimento_5', name: 'Ajo Molido 25gr INDIAS', price: 450.00 },
+                    { id: 'condimento_6', name: 'Ajo Reina Mora x50gr', price: 800.00 },
+                    { id: 'condimento_7', name: 'Albahaca Alicante', price: 650.00 },
+                    { id: 'condimento_8', name: 'Albahaca x20gr', price: 700.00 }, // Marca no especificada
+                    { id: 'condimento_9', name: 'Anis en Grano Alicante', price: 700.00 },
+                    { id: 'condimento_10', name: 'Azafran x2 Alicante', price: 3650.00 },
+                    { id: 'condimento_11', name: 'Azucar Impalpable Reina Mora x200gr', price: 750.00 },
+                    { id: 'condimento_12', name: 'Azucar Impalpable x100gr', price: 450.00 }, // Marca no especificada
+                    { id: 'condimento_13', name: 'Bicarbonato de Sodio 25gr INDIAS', price: 340.00 },
+                    { id: 'condimento_14', name: 'Bicarbonato de Sodio 50gr Alicante', price: 500.00 },
+                    { id: 'condimento_15', name: 'Bolsa p/Cocinar Alicante', price: 1650.00 },
+                    { id: 'condimento_16', name: 'Canela Alicante', price: 1050.00 },
+                    { id: 'condimento_17', name: 'Canela en Rama (Ceylan) INDIAS', price: 1800.00 },
+                    { id: 'condimento_18', name: 'Canela en Rama Reina Mora x15gr', price: 1450.00 },
+                    { id: 'condimento_19', name: 'Canela Molida 25gr INDIAS', price: 700.00 },
+                    { id: 'condimento_20', name: 'Canela Molida Reina Mora x25gr', price: 600.00 },
+                    { id: 'condimento_21', name: 'Cebolla Deshidratada Alicante', price: 1400.00 },
+                    { id: 'condimento_22', name: 'Chimichurri Alicante', price: 750.00 },
+                    { id: 'condimento_23', name: 'Chimichurri INDIAS x25gr', price: 450.00 },
+                    { id: 'condimento_24', name: 'Chimichurri Reina Mora x25gr', price: 500.00 },
+                    { id: 'condimento_25', name: 'Coco Rallado Alicante', price: 950.00 },
+                    { id: 'condimento_26', name: 'Coco Rallado Reina Mora x25gr', price: 350.00 },
+                    { id: 'condimento_27', name: 'Coco Rallado x50gr', price: 800.00 }, // Marca no especificada
+                    { id: 'condimento_28', name: 'Comino Alicante', price: 750.00 },
+                    { id: 'condimento_29', name: 'Comino INDIAS x25gr', price: 450.00 },
+                    { id: 'condimento_30', name: 'Comino Reina Mora x25gr', price: 450.00 },
+                    { id: 'condimento_31', name: 'Condimento p/Arroz Reina Mora x25gr', price: 450.00 },
+                    { id: 'condimento_32', name: 'Condimento p/Arroz Alicante', price: 750.00 },
+                    { id: 'condimento_33', name: 'Condimento p/Arroz INDIAS x25gr', price: 400.00 },
+                    { id: 'condimento_34', name: 'Condimento p/Carnes Alicante', price: 950.00 },
+                    { id: 'condimento_35', name: 'Condimento p/Carnes Blancas Alicante', price: 900.00 },
+                    { id: 'condimento_36', name: 'Condimento p/Empanadas Alicante', price: 900.00 },
+                    { id: 'condimento_37', name: 'Condimento p/Milanesas Alicante', price: 750.00 },
+                    { id: 'condimento_38', name: 'Condimento p/Pizza Reina Mora x25gr', price: 450.00 },
+                    { id: 'condimento_39', name: 'Condimento p/Pizzas Alicante', price: 650.00 },
+                    { id: 'condimento_40', name: 'Condimento p/Tuco y Guiso Alicante', price: 650.00 },
+                    { id: 'condimento_41', name: 'Condimentos para Vegetales Alicante', price: 650.00 },
+                    { id: 'condimento_42', name: 'Esencia de Vainilla 30ml INDIAS', price: 535.21 },
+                    { id: 'condimento_43', name: 'Esencia de Vainilla Alicante', price: 1050.00 },
+                    { id: 'condimento_44', name: 'Jugo de Limon 1L MINERVA', price: 3000.00 },
+                    { id: 'condimento_45', name: 'Laurel Hoja Alicante', price: 850.00 },
+                    { id: 'condimento_46', name: 'Mayonesa Cada Dia 500gr', price: 1300.00 }, // Pertenece a Aderezos
+                    { id: 'condimento_47', name: 'Mezcla p/Hamburguesas x40gr INDIAS', price: 350.00 },
+                    { id: 'condimento_48', name: 'Mix Curry', price: 900.00 }, // Marca no especificada
+                    { id: 'condimento_49', name: 'Nuez Moscada Entera 15gr INDIAS', price: 1680.00 },
+                    { id: 'condimento_50', name: 'Nuez Moscada Entera Alicante', price: 1550.00 },
+                    { id: 'condimento_51', name: 'Nuez Moscada Molida x15gr INDIAS', price: 460.00 },
+                    { id: 'condimento_52', name: 'Nuez Moscada Reina Mora x25gr', price: 900.00 },
+                    { id: 'condimento_53', name: 'Oregano 25gr INDIAS', price: 360.00 },
+                    { id: 'condimento_54', name: 'Oregano Alicante', price: 850.00 },
+                    { id: 'condimento_55', name: 'Oregano Reina Mora x25gr', price: 400.00 },
+                    { id: 'condimento_56', name: 'Perejil en Hojas', price: 480.00 }, // Marca no especificada
+                    { id: 'condimento_57', name: 'Pimenton 25gr INDIAS', price: 380.00 },
+                    { id: 'condimento_58', name: 'Pimenton Alicante', price: 550.00 },
+                    { id: 'condimento_59', name: 'Pimenton Reina Mora x25gr', price: 400.00 },
+                    { id: 'condimento_60', name: 'Pimienta Blanca 25gr INDIAS', price: 1150.00 },
+                    { id: 'condimento_61', name: 'Pimienta Blanca Alicante', price: 1200.00 },
+                    { id: 'condimento_62', name: 'Pimienta Blanca Grano Alicante', price: 1150.00 },
+                    { id: 'condimento_63', name: 'Pimienta Blanca Molinillo Alicante', price: 4500.00 },
+                    { id: 'condimento_64', name: 'Pimienta Negra 25gr INDIAS', price: 850.00 },
+                    { id: 'condimento_65', name: 'Pimienta Negra en Grano Alicante', price: 900.00 },
+                    { id: 'condimento_66', name: 'Pimienta Negra Molida Alicante', price: 1250.00 },
+                    { id: 'condimento_67', name: 'Pimienta Negra Molinillo Alicante', price: 4200.00 },
+                    { id: 'condimento_68', name: 'Polvo p/Hornear Reina Mora x25gr', price: 600.00 },
+                    { id: 'condimento_69', name: 'Polvo para Hornear 50gr INDIAS', price: 500.00 },
+                    { id: 'condimento_70', name: 'Provenzal 25gr INDIAS', price: 550.00 },
+                    { id: 'condimento_71', name: 'Provenzal Alicante', price: 800.00 },
+                    { id: 'condimento_72', name: 'Provenzal Reina Mora x25gr', price: 450.00 },
+                    { id: 'condimento_73', name: 'Romero Alicante', price: 500.00 },
+                    { id: 'condimento_74', name: 'Saborizante en Polvo Alicante', price: 220.00 },
+                    { id: 'condimento_75', name: 'Sal Dos Anclas Gruesa Estuche x500gr', price: 800.00 },
+                    { id: 'condimento_76', name: 'Sal Entrefina TRESAL 1kg', price: 700.00 },
+                    { id: 'condimento_77', name: 'Sal Fina en Estuche x500gr Celusal', price: 800.00 },
+                    { id: 'condimento_78', name: 'Sal Fina Estuche 500gr Dos Anclas', price: 1100.00 },
+                    { id: 'condimento_79', name: 'Sal Fina San Remo x500gr', price: 550.00 },
+                    { id: 'condimento_80', name: 'Sal Fina TRESAL 1kg', price: 750.00 },
+                    { id: 'condimento_81', name: 'Sal Gruesa Celusal x500gr', price: 690.00 },
+                    { id: 'condimento_82', name: 'Sal Gruesa TRESAL x1kg', price: 650.00 },
+                    { id: 'condimento_83', name: 'Sal Parrillera Entrefina Estuche 500gr', price: 2400.00 }, // Marca no especificada
+                    { id: 'condimento_84', name: 'Salsa Blanca x50gr INDIAS', price: 480.00 },
+                    { id: 'condimento_85', name: 'Salsa Botella 1kg Tuxedo', price: 1100.00 }, // Pertenece a Salsas
+                    { id: 'condimento_86', name: 'Salsa Botella 500g Tuxedo', price: 900.00 }, // Pertenece a Salsas
+                    { id: 'condimento_87', name: 'Semillas p/Comidas', price: 1900.00 }, // Marca no especificada
+                    { id: 'condimento_88', name: 'Tomillo Alicante', price: 450.00 },
+                    { id: 'condimento_89', name: 'Vinagre Vino Caminito 1L', price: 1100.00 }, // Pertenece a Aceite/Vinagres
+                    { id: 'condimento_90', name: 'Yuspe Bicarbonato x20gr', price: 150.00 },
+                ]
+            },
+            {
+                categoryName: "Conservas",
+                items: [
+                    { id: 'conserva_0', name: 'Arvejas San Remo Paquete x400gr', price: 700.00 },
+                    { id: 'conserva_1', name: 'Atun Desmenuzado CUMANA', price: 1050.00 },
+                    { id: 'conserva_2', name: 'Caracas Pimientos Morrones x185gr', price: 1850.00 },
+                    { id: 'conserva_3', name: 'Choclo Caracas en Lata x300gr', price: 850.00 },
+                    { id: 'conserva_4', name: 'Filetes de Anchoitas Puglisi x90gr', price: 4500.00 },
+                    { id: 'conserva_5', name: 'Jardinera Caracas en Lata x350gr', price: 730.00 },
+                    { id: 'conserva_6', name: 'Lentejas Caracas en Lata x300gr', price: 600.00 },
+                    { id: 'conserva_7', name: 'Merluza en Aceite', price: 2200.00 }, // Marca no especificada
+                    { id: 'conserva_8', name: 'Pasta de Aceitunas x300gr', price: 850.00 }, // Marca no especificada
+                    { id: 'conserva_9', name: 'Pickles en Vinagre x200gr', price: 600.00 }, // Marca no especificada
+                    { id: 'conserva_10', name: 'Porotos Caracas en Lata x300gr', price: 820.00 },
+                    { id: 'conserva_11', name: 'Sardina en Lata', price: 1300.00 }, // Marca no especificada
+                ]
+            },
+             {
+                categoryName: "Descartables",
+                items: [
+                    { id: 'descartable_0', name: 'Bandeja Carton N4 Gris', price: 3200.00 },
+                    { id: 'descartable_1', name: 'Bolsa Camiseta 30x40', price: 550.00 },
+                    { id: 'descartable_2', name: 'Bolsa Camiseta 40x50', price: 800.00 },
+                    { id: 'descartable_3', name: 'Bolsa Camiseta 45x60', price: 1850.00 },
+                    { id: 'descartable_4', name: 'Bolsa Camiseta 50x60', price: 2400.00 },
+                    { id: 'descartable_5', name: 'Bolsa Camiseta 60x80', price: 6200.00 },
+                    { id: 'descartable_6', name: 'Caja Navideña', price: 1000.00 }, // Este producto puede ser estacional
+                    { id: 'descartable_7', name: 'Carton para Pancho x100', price: 1000.00 },
+                    { id: 'descartable_8', name: 'Cucharitas Descartables x50', price: 650.00 },
+                    { id: 'descartable_9', name: 'Filtro de Papel', price: 110.00 }, // Para café?
+                    { id: 'descartable_10', name: 'Guantes Moteados', price: 1050.00 },
+                    { id: 'descartable_11', name: 'Guantes Polietileno Jorgito x100gr', price: 800.00 },
+                    { id: 'descartable_12', name: 'Guantes Verdes Lucyber', price: 2150.00 },
+                    { id: 'descartable_13', name: 'Pañuelo Elegante x6u', price: 900.00 },
+                    { id: 'descartable_14', name: 'Plato Descatable x50', price: 1700.00 },
+                    { id: 'descartable_15', name: 'Rollo 15x20', price: 2050.00 }, // Bolsas?
+                    { id: 'descartable_16', name: 'Rollo 20x25', price: 3500.00 },
+                    { id: 'descartable_17', name: 'Rollo 20x30 Rendidor', price: 3500.00 },
+                    { id: 'descartable_18', name: 'Rollo 25x35', price: 4500.00 },
+                    { id: 'descartable_19', name: 'Rollo Rendidor 15x25', price: 2100.00 },
+                    { id: 'descartable_20', name: 'Separador de Rollo 20x25', price: 3000.00 },
+                    { id: 'descartable_21', name: 'Sobre N7 x100 Marron', price: 2900.00 },
+                    { id: 'descartable_22', name: 'Sorbete c/Funda', price: 6300.00 }, // Pack grande
+                    { id: 'descartable_23', name: 'Vaso 1L c/u', price: 100.00 },
+                    { id: 'descartable_24', name: 'Vaso 500ml', price: 55.00 },
+                    { id: 'descartable_25', name: 'Vaso 800ml c/u', price: 100.00 },
+                    { id: 'descartable_26', name: 'Vaso Blanco 180ml x50', price: 950.00 },
+                    { id: 'descartable_27', name: 'Vaso Enpolex 180ml x25', price: 1200.00 },
+                    { id: 'descartable_28', name: 'Vaso Enpolex 240ml', price: 1400.00 },
+                ]
+            },
+            {
+                categoryName: "Encendedores",
+                items: [
+                    { id: 'encendedor_0', name: 'Blister Encendedores Candela', price: 6300.00 },
+                    { id: 'encendedor_1', name: 'Blister Encendedores Candela Futbol', price: 7700.00 },
+                    { id: 'encendedor_2', name: 'Blister Encendedores Fuegolandia', price: 5300.00 },
+                    { id: 'encendedor_3', name: 'Encendedor BX7', price: 650.00 },
+                    { id: 'encendedor_4', name: 'Encendedor Candela "Magiclick"', price: 2600.00 },
+                    { id: 'encendedor_5', name: 'Encendedor Candela Futbol', price: 350.00 },
+                    { id: 'encendedor_6', name: 'Encendedor Candela x1', price: 300.00 },
+                    { id: 'encendedor_7', name: 'Encendedor Fuegolancia x1', price: 250.00 },
+                    { id: 'encendedor_8', name: 'Encendedores Cricket x1', price: 610.00 },
+                    { id: 'encendedor_9', name: 'Encendedores Djeep x1', price: 2050.00 },
+                    { id: 'encendedor_10', name: 'Maxi Bic x1', price: 1500.00 },
+                    { id: 'encendedor_11', name: 'Mini Bic x1', price: 1050.00 },
+                ]
+            },
+            {
+                categoryName: "Energizante",
+                items: [
+                    { id: 'energizante_0', name: 'Lata Block 473ml', price: 1600.00 },
+                    { id: 'energizante_1', name: 'Monster', price: 1900.00 }, // Asumo tamaño estándar
+                    { id: 'energizante_2', name: 'Pack Rockstar 1,5', price: 10700.00 }, // No claro qué es 1,5
+                    { id: 'energizante_3', name: 'Pack Rockstar', price: 5000.00 }, // No claro cantidad/tamaño
+                    { id: 'energizante_4', name: 'Speed 473ml', price: 1900.00 },
+                    { id: 'energizante_5', name: 'Speed x 250cc', price: 1300.00 },
+                    { id: 'energizante_6', name: 'Speed Zero 250ml', price: 1100.00 },
+                    { id: 'energizante_7', name: 'Speed Zero 473ml', price: 1700.00 },
+                ]
+            },
+            {
+                categoryName: "Fernet",
+                items: [
+                    { id: 'fernet_0', name: 'Fernet 1882', price: 5600.00 }, // Tamaño no especificado, asumo 750ml
+                    { id: 'fernet_1', name: 'Fernet 1L', price: 13000.00 }, // Marca no especificada
+                    { id: 'fernet_2', name: 'Fernet 450ml', price: 6450.00 }, // Marca no especificada
+                    { id: 'fernet_3', name: 'Fernet Branca 750ml', price: 10500.00 },
+                    { id: 'fernet_4', name: 'Fernet Branca Menta', price: 6000.00 }, // Tamaño no especificado
+                    { id: 'fernet_5', name: 'Fernet Branca Miniatura', price: 2000.00 },
+                    { id: 'fernet_6', name: 'Fernet Vittone', price: 3300.00 }, // Tamaño no especificado
+                    { id: 'fernet_7', name: 'Pack Fernet Fernan-do 1L', price: 3900.00 }, // Marca Fernan-do
+                ]
+            },
+            {
+                categoryName: "Fiambres",
+                items: [
+                    { id: 'fiambre_0', name: 'Barra Noalsa', price: 9400.00 }, // Por kg?
+                    { id: 'fiambre_1', name: 'Barra Tybo Lactear', price: 8600.00 }, // Por kg?
+                    { id: 'fiambre_2', name: 'Capelletti AMICI x400gr', price: 1300.00 },
+                    { id: 'fiambre_3', name: 'Cheddar Americano Tonadita x168 Fetas', price: 25600.00 },
+                    { id: 'fiambre_4', name: 'Cheddar Tonadita Salsa x3kg', price: 21600.00 },
+                    { id: 'fiambre_5', name: 'Chorizo Tipo Español Tacural', price: 1350.00 }, // Por unidad o kg?
+                    { id: 'fiambre_6', name: 'Crema de Leche Apostoles x200ml', price: 1150.00 },
+                    { id: 'fiambre_7', name: 'Crema de Leche La Serenisima', price: 2000.00 }, // Tamaño?
+                    { id: 'fiambre_8', name: 'Crema de Leche Tonadita x200ml', price: 1600.00 },
+                    { id: 'fiambre_9', name: 'Cremoso Cofradia', price: 6200.00 }, // Por kg?
+                    { id: 'fiambre_10', name: 'Cremoso Punta de Agua', price: 8300.00 }, // Por kg?
+                    { id: 'fiambre_11', name: 'Doña Flora Grasa x1kg', price: 3750.00 },
+                    { id: 'fiambre_12', name: 'Fiambre Cocido Grassetto', price: 4800.00 }, // Por kg?
+                    { id: 'fiambre_13', name: 'Fiambre Cocido Trozer', price: 5100.00 }, // Por kg?
+                    { id: 'fiambre_14', name: 'Fideos Caseros', price: 1250.00 }, // Marca/peso?
+                    { id: 'fiambre_15', name: 'Grasa Doña Flora x500gr', price: 1900.00 },
+                    { id: 'fiambre_16', name: 'Grasa x800gr', price: 2500.00 }, // Marca?
+                    { id: 'fiambre_17', name: 'Holanda Lactear', price: 15700.00 }, // Por kg?
+                    { id: 'fiambre_18', name: 'Jamon Cocido LARIO', price: 7200.00 }, // Por kg?
+                    { id: 'fiambre_19', name: 'Jamon Cocido Pampita Tucural', price: 4900.00 }, // Por kg?
+                    { id: 'fiambre_20', name: 'Jamon Crudo', price: 17500.00 }, // Marca/por kg?
+                    { id: 'fiambre_21', name: 'Jamon Crudo TACURAL', price: 16900.00 }, // Por kg?
+                    { id: 'fiambre_22', name: 'Levadura Calsa x50gr', price: 550.00 },
+                    { id: 'fiambre_23', name: 'Levadura Prensada Levex x50gr', price: 400.00 },
+                    { id: 'fiambre_24', name: 'Levadura x500gr', price: 3200.00 }, // Marca?
+                    { id: 'fiambre_25', name: 'Lomo Horn L\'Abratto', price: 18000.00 }, // Por kg?
+                    { id: 'fiambre_26', name: 'Manteca SYS x100gr', price: 1100.00 },
+                    { id: 'fiambre_27', name: 'Manteca SYS x200gr', price: 2250.00 },
+                    { id: 'fiambre_28', name: 'Manteca Tonadita x100gr', price: 1450.00 },
+                    { id: 'fiambre_29', name: 'Margadan x500gr', price: 2850.00 }, // Margarina
+                    { id: 'fiambre_30', name: 'Masa de Empanadas p/Freir ITALIANA', price: 1000.00 },
+                    { id: 'fiambre_31', name: 'Masa de Empanadas p/Horno AMICI', price: 950.00 },
+                    { id: 'fiambre_32', name: 'Masa p/Empanada Argentina', price: 900.00 },
+                    { id: 'fiambre_33', name: 'Mortadela Bocha 254', price: 3700.00 }, // Por kg?
+                    { id: 'fiambre_34', name: 'Mortadela Bocha CA', price: 6100.00 }, // Por kg?
+                    { id: 'fiambre_35', name: 'Mortadela Bocha Calcha', price: 7400.00 }, // Por kg?
+                    { id: 'fiambre_36', name: 'Mortadela Bocha Paladini', price: 8600.00 }, // Por kg?
+                    { id: 'fiambre_37', name: 'Mortadela Bologna La Casona', price: 6100.00 }, // Por kg?
+                    { id: 'fiambre_38', name: 'Mortadela CA', price: 5200.00 }, // Por kg? Diferente de bocha?
+                    { id: 'fiambre_39', name: 'Mortadela Cilindro 808 Piamontesa', price: 4800.00 }, // Por kg?
+                    { id: 'fiambre_40', name: 'Mortadela Familiar Paladini x500gr', price: 4900.00 },
+                    { id: 'fiambre_41', name: 'Mortadela Familiar x400gr', price: 1850.00 }, // Marca?
+                    { id: 'fiambre_42', name: 'Mortadela Tivoli', price: 4800.00 }, // Por kg?
+                    { id: 'fiambre_43', name: 'Muzzarella Cilindro Brescia', price: 8200.00 }, // Por kg?
+                    { id: 'fiambre_44', name: 'Muzzarella Cilindro Puyehue', price: 7600.00 }, // Por kg?
+                    { id: 'fiambre_45', name: 'Paleta 254', price: 3200.00 }, // Por kg?
+                    { id: 'fiambre_46', name: 'Paleta de Cerdo La Casona', price: 4300.00 }, // Por kg?
+                    { id: 'fiambre_47', name: 'Paleta de Cerdo Tapalque', price: 6300.00 }, // Por kg?
+                    { id: 'fiambre_48', name: 'Paleta LARIO', price: 6800.00 }, // Por kg?
+                    { id: 'fiambre_49', name: 'Paleta Trozer', price: 5100.00 }, // Por kg?
+                    { id: 'fiambre_50', name: 'Panceta Ahumada Cagnoli', price: 16900.00 }, // Por kg?
+                    { id: 'fiambre_51', name: 'Panceta Ahumada Cerdo CA', price: 15700.00 }, // Por kg?
+                    { id: 'fiambre_52', name: 'Panceta Ahumada FOX', price: 18400.00 }, // Por kg?
+                    { id: 'fiambre_53', name: 'Pascualina AMICI x350gr', price: 1100.00 },
+                    { id: 'fiambre_54', name: 'Pascualina Argentina', price: 850.00 },
+                    { id: 'fiambre_55', name: 'Pategras Lactear', price: 17300.00 }, // Por kg?
+                    { id: 'fiambre_56', name: 'Pernil Trozer', price: 6800.00 }, // Por kg?
+                    { id: 'fiambre_57', name: 'Pre Pizzas Caseras', price: 1650.00 }, // Pack?
+                    { id: 'fiambre_58', name: 'Queso Azul La Quesera', price: 15000.00 }, // Por kg?
+                    { id: 'fiambre_59', name: 'Queso Barra Danbo Las Tres Niñas', price: 8700.00 }, // Por kg?
+                    { id: 'fiambre_60', name: 'Queso Barra Danbo Noal', price: 8500.00 }, // Por kg?
+                    { id: 'fiambre_61', name: 'Queso Barra Danbo Punta de Agua', price: 10100.00 }, // Por kg?
+                    { id: 'fiambre_62', name: 'Queso Barra Magdalena', price: 8500.00 }, // Por kg?
+                    { id: 'fiambre_63', name: 'Queso Barra Tybo IL', price: 8500.00 }, // Por kg?
+                    { id: 'fiambre_64', name: 'Queso Crema La Serenisima', price: 2400.00 }, // Tamaño?
+                    { id: 'fiambre_65', name: 'Queso Crema Patagonia x200gr', price: 1500.00 },
+                    { id: 'fiambre_66', name: 'Queso Cremoso Cremon', price: 8500.00 }, // Por kg?
+                    { id: 'fiambre_67', name: 'Queso Cremoso Estancia Oro', price: 6600.00 }, // Por kg?
+                    { id: 'fiambre_68', name: 'Queso Cremoso IL Queso', price: 6700.00 }, // Por kg?
+                    { id: 'fiambre_69', name: 'Queso Cremoso Lactear', price: 6700.00 }, // Por kg?
+                    { id: 'fiambre_70', name: 'Queso Cremoso Los Manantiales', price: 6000.00 }, // Por kg?
+                    { id: 'fiambre_71', name: 'Queso de Cerdo FOX', price: 6500.00 }, // Por kg?
+                    { id: 'fiambre_72', name: 'Queso para Rallar Reggianito Noal', price: 14800.00 }, // Por kg?
+                    { id: 'fiambre_73', name: 'Queso Sardo La Estancia', price: 9200.00 }, // Por kg?
+                    { id: 'fiambre_74', name: 'Ravioles AMICI x400gr', price: 1300.00 },
+                    { id: 'fiambre_75', name: 'Salame Crespon "Picado Grueso" LA', price: 15000.00 }, // Marca LA, por kg?
+                    { id: 'fiambre_76', name: 'Salame Milan 254', price: 4700.00 }, // Por kg?
+                    { id: 'fiambre_77', name: 'Salame Tipo Milan IMPERIALE', price: 7500.00 }, // Por kg?
+                    { id: 'fiambre_78', name: 'Salame Tipo Milan LA CASONA', price: 11400.00 }, // Por kg?
+                    { id: 'fiambre_79', name: 'Salame Tipo Milan La Residencia', price: 8400.00 }, // Por kg?
+                    { id: 'fiambre_80', name: 'Salame Tipo Milan LARIO', price: 11000.00 }, // Por kg?
+                    { id: 'fiambre_81', name: 'Salame Tivoli', price: 8400.00 }, // Por kg?
+                    { id: 'fiambre_82', name: 'Salame x Metro Picado Fino "CRIOLLO"', price: 15300.00 }, // Por kg?
+                    { id: 'fiambre_83', name: 'Salame x Metro Picado Grueso', price: 15300.00 }, // Por kg?
+                    { id: 'fiambre_84', name: 'Salamin Fox Picado Fino', price: 2950.00 }, // Unidad?
+                    { id: 'fiambre_85', name: 'Salamin Fox Picado Grueso', price: 2950.00 }, // Unidad?
+                    { id: 'fiambre_86', name: 'Salamines La Casona', price: 2400.00 }, // Unidad?
+                    { id: 'fiambre_87', name: 'Salchichas 66', price: 700.00 }, // Paquete?
+                    { id: 'fiambre_88', name: 'Salchichas CAP x6', price: 750.00 },
+                    { id: 'fiambre_89', name: 'Salchichas Fela', price: 1000.00 }, // Paquete?
+                    { id: 'fiambre_90', name: 'Salchichas Friar x890gr', price: 4000.00 },
+                    { id: 'fiambre_91', name: 'Salchichas La Blanca', price: 700.00 }, // Paquete?
+                    { id: 'fiambre_92', name: 'Salchichas Largas Granja Iris', price: 4000.00 }, // Paquete?
+                    { id: 'fiambre_93', name: 'Salchichas Largas Swift', price: 3400.00 }, // Paquete?
+                    { id: 'fiambre_94', name: 'Salchichas Nutryte', price: 800.00 }, // Paquete?
+                    { id: 'fiambre_95', name: 'Salchichas Paladini', price: 1850.00 }, // Paquete?
+                    { id: 'fiambre_96', name: 'Salchichas Swift x6', price: 1350.00 },
+                    { id: 'fiambre_97', name: 'Salchichon Primvera Trozer', price: 5600.00 }, // Por kg?
+                    { id: 'fiambre_98', name: 'Salchichon Tipo Primavera FOX', price: 6500.00 }, // Por kg?
+                    { id: 'fiambre_99', name: 'Sardo Raggio di Sole', price: 15000.00 }, // Por kg?
+                    { id: 'fiambre_100', name: 'Ñoquis AMICI x400gr', price: 1150.00 }, // Noquis escrito con Ñ
+                ]
+            },
+            {
+                categoryName: "Galletas",
+                items: [
+                    { id: 'galleta_0', name: 'Barrita de Cereal FLOW CEREAL x1', price: 550.00 },
+                    { id: 'galleta_1', name: 'Bizcochos DON SATUR', price: 650.00 }, // Peso?
+                    { id: 'galleta_2', name: 'Bizcochuelo Aguila', price: 3200.00 },
+                    { id: 'galleta_3', name: 'Budin Buon Natale', price: 560.00 },
+                    { id: 'galleta_4', name: 'Budin Zupay 170g', price: 650.00 },
+                    { id: 'galleta_5', name: 'Chocolinas x170gr', price: 900.00 },
+                    { id: 'galleta_6', name: 'Chocolinas x250gr', price: 1200.00 },
+                    { id: 'galleta_7', name: 'Club Social x1', price: 400.00 },
+                    { id: 'galleta_8', name: 'Criollitas x100gr', price: 450.00 },
+                    { id: 'galleta_9', name: 'Galleta CHIPS LA PROVIDENCIA', price: 800.00 }, // Tamaño?
+                    { id: 'galleta_10', name: 'Galleta CHIPS LA PROVIDENCIA x119gr', price: 500.00 },
+                    { id: 'galleta_11', name: 'Galleta Dale x81gr', price: 350.00 },
+                    { id: 'galleta_12', name: 'Galleta LA PROVIDENCIA Tripack', price: 800.00 },
+                    { id: 'galleta_13', name: 'Galleta Lincoln x153gr', price: 850.00 },
+                    { id: 'galleta_14', name: 'Galleta Salvado Mauri x210gr', price: 750.00 },
+                    { id: 'galleta_15', name: 'Galleta Tia Maruca Salvado x3', price: 2050.00 },
+                    { id: 'galleta_16', name: 'Galleta Traviata x3', price: 1300.00 },
+                    { id: 'galleta_17', name: 'Galleta Vocacion x145gr', price: 550.00 },
+                    { id: 'galleta_18', name: 'Galletas Argentitas', price: 750.00 }, // Peso?
+                    { id: 'galleta_19', name: 'Galletas Block x124gr', price: 1200.00 },
+                    { id: 'galleta_20', name: 'Galletas Diversion', price: 1850.00 }, // Peso?
+                    { id: 'galleta_21', name: 'Galletas Fauna x150gr', price: 450.00 },
+                    { id: 'galleta_22', name: 'Galletas Formis x102gr', price: 900.00 },
+                    { id: 'galleta_23', name: 'Galletas Hojaldre Mafalda', price: 750.00 }, // Peso?
+                    { id: 'galleta_24', name: 'Galletas Maria Elena x1', price: 100.00 },
+                    { id: 'galleta_25', name: 'Galletas Maria Elena x30', price: 2600.00 },
+                    { id: 'galleta_26', name: 'Galletas Milka Mousse', price: 1700.00 }, // Peso?
+                    { id: 'galleta_27', name: 'Galletas Molino 230gr', price: 1400.00 },
+                    { id: 'galleta_28', name: 'Galletas Oreo', price: 1350.00 }, // Peso?
+                    { id: 'galleta_29', name: 'Galletas Oreo Coca Cola', price: 1350.00 }, // Peso?
+                    { id: 'galleta_30', name: 'Galletas Oreo Mani/Chocolate', price: 1350.00 }, // Peso?
+                    { id: 'galleta_31', name: 'Galletas Pepas PEKELINO x500gr', price: 1100.00 },
+                    { id: 'galleta_32', name: 'Galletas Pepitos', price: 1050.00 }, // Peso?
+                    { id: 'galleta_33', name: 'Galletas Porteñitas 139gr', price: 1100.00 },
+                    { id: 'galleta_34', name: 'Galletas Rumba/Mellizas/Amor', price: 1150.00 }, // Peso?
+                    { id: 'galleta_35', name: 'Galletas Serranitas x3', price: 1050.00 },
+                    { id: 'galleta_36', name: 'Galletas Surtido Desfile x398gr', price: 1250.00 },
+                    { id: 'galleta_37', name: 'Galletas Surtido Lia', price: 1200.00 }, // Peso?
+                    { id: 'galleta_38', name: 'Galletas Terrabusi Variedad x390gr', price: 1950.00 },
+                    { id: 'galleta_39', name: 'Galletas Toddy 126gr', price: 1150.00 },
+                    { id: 'galleta_40', name: 'Galletas Tostex x270gr', price: 1250.00 },
+                    { id: 'galleta_41', name: 'Galletas Traviata x108gr', price: 700.00 },
+                    { id: 'galleta_42', name: 'Galletas Trio Pepas x300gr', price: 850.00 },
+                    { id: 'galleta_43', name: 'Magdalenas POZO', price: 1200.00 }, // Peso/cantidad?
+                    { id: 'galleta_44', name: 'Mana Rellenas', price: 1150.00 }, // Peso?
+                    { id: 'galleta_45', name: 'Mana Simple', price: 800.00 }, // Peso?
+                    { id: 'galleta_46', name: 'Merengadas x88gr', price: 950.00 },
+                    { id: 'galleta_47', name: 'Mini Pepitos/Oreo x1', price: 750.00 },
+                    { id: 'galleta_48', name: 'Oblea Oblita x50gr', price: 300.00 },
+                    { id: 'galleta_49', name: 'Oblea Zupay x 50G', price: 300.00 },
+                    { id: 'galleta_50', name: 'Obleas Opera x55gr', price: 600.00 },
+                    { id: 'galleta_51', name: 'Obleas Opera x92gr', price: 850.00 },
+                    { id: 'galleta_52', name: 'Pan Dulce Buon Natale', price: 1480.00 }, // Peso?
+                    { id: 'galleta_53', name: 'Pipas Gigantes NEGRAS', price: 600.00 }, // Peso?
+                    { id: 'galleta_54', name: 'Polvoritas x81gr', price: 400.00 },
+                    { id: 'galleta_55', name: 'Rhodesia x1', price: 650.00 },
+                    { id: 'galleta_56', name: 'Saladix Cross Fuego x67gr', price: 850.00 },
+                    { id: 'galleta_57', name: 'Saladix en Caja', price: 1150.00 }, // Peso?
+                    { id: 'galleta_58', name: 'Saladix en Tira x1', price: 550.00 },
+                    { id: 'galleta_59', name: 'Sonrisas x108gr', price: 950.00 },
+                    { id: 'galleta_60', name: 'Surtido Bagley', price: 2250.00 }, // Peso?
+                    { id: 'galleta_61', name: 'Surtido Fauna x400gr', price: 1100.00 },
+                    { id: 'galleta_62', name: 'Tita x1', price: 550.00 },
+                    { id: 'galleta_63', name: 'Tostadas 1kg', price: 7400.00 }, // Marca?
+                    { id: 'galleta_64', name: 'Tostadas Tosti Clasicas 200g', price: 850.00 },
+                    { id: 'galleta_65', name: 'Tosti Arroz', price: 650.00 }, // Peso?
+                    { id: 'galleta_66', name: 'Trio Frolitas Membrillo x300gr', price: 860.00 },
+                    { id: 'galleta_67', name: 'Turron de Arroz PAYSANDU x1', price: 150.00 },
+                    { id: 'galleta_68', name: 'Turron de Arroz PAYSANDU x30', price: 3700.00 },
+                    { id: 'galleta_69', name: 'Vainillas Mauri x80gr', price: 400.00 },
+                    { id: 'galleta_70', name: 'Vainillas Pozo x85gr', price: 350.00 },
+                ]
+            },
+            {
+                categoryName: "Gaseosa",
+                items: [
+                    { id: 'gaseosa_0', name: 'Coca 1,25L Vidrio', price: 1850.00 },
+                    { id: 'gaseosa_1', name: 'Coca 2.25L Descartable', price: 3000.00 },
+                    { id: 'gaseosa_2', name: 'Coca Cola 1,5L', price: 2800.00 },
+                    { id: 'gaseosa_3', name: 'Coca Cola 1L', price: 1900.00 },
+                    { id: 'gaseosa_4', name: 'Coca Cola 2.5L Retornable', price: 2850.00 },
+                    { id: 'gaseosa_5', name: 'Coca Cola 2L Retornable', price: 2450.00 },
+                    { id: 'gaseosa_6', name: 'Coca Cola 500ml', price: 1000.00 },
+                    { id: 'gaseosa_7', name: 'Coca Cola S/A 1L', price: 1900.00 }, // Sin Azúcar
+                    { id: 'gaseosa_8', name: 'Coca Cola Sin Azucar 1,5L', price: 2800.00 },
+                    { id: 'gaseosa_9', name: 'Coca Cola Sin Azucar 2L Retornable', price: 2450.00 },
+                    { id: 'gaseosa_10', name: 'Coca Vidrio 237ml DESCARTABLE', price: 700.00 },
+                    { id: 'gaseosa_11', name: 'Crush 2,25L', price: 1700.00 },
+                    { id: 'gaseosa_12', name: 'Fanta 1,25L Vidrio', price: 1850.00 },
+                    { id: 'gaseosa_13', name: 'Fanta 1,5L', price: 2800.00 },
+                    { id: 'gaseosa_14', name: 'Fanta 2L Retornable', price: 2400.00 },
+                    { id: 'gaseosa_15', name: 'Fanta 500ml', price: 1000.00 },
+                    { id: 'gaseosa_16', name: 'Fanta Pomelo 500ml', price: 900.00 },
+                    { id: 'gaseosa_17', name: 'Lata Coca Cola 310ml', price: 850.00 },
+                    { id: 'gaseosa_18', name: 'Lata COCA COLA SIN AZUCAR 310ml', price: 850.00 },
+                    { id: 'gaseosa_19', name: 'Lata Coca Oreo 473ml', price: 870.00 },
+                    { id: 'gaseosa_20', name: 'Lata FANTA 310ml', price: 850.00 },
+                    { id: 'gaseosa_21', name: 'Lata Pepsi/Seven/Mirinda', price: 4900.00 }, // Pack?
+                    { id: 'gaseosa_22', name: 'Lata SCHWEPPES POMELO 310ml', price: 850.00 },
+                    { id: 'gaseosa_23', name: 'Lata SCHWEPPES TONICA 310ml', price: 850.00 },
+                    { id: 'gaseosa_24', name: 'Lata Sprite 310ml', price: 850.00 },
+                    { id: 'gaseosa_25', name: 'Mini Lata Coca 220ml', price: 600.00 },
+                    { id: 'gaseosa_26', name: 'Mini Lata Coca con Cafe 220ml', price: 800.00 },
+                    { id: 'gaseosa_27', name: 'Pack Coca Cola 3L', price: 19000.00 }, // Pack x Cuántas?
+                    { id: 'gaseosa_28', name: 'Pack Coca Descartable 2,25', price: 15800.00 }, // Pack x Cuántas?
+                    { id: 'gaseosa_29', name: 'Pack Coca Descartable 2,5', price: 16800.00 }, // Pack x Cuántas?
+                    { id: 'gaseosa_30', name: 'Pack Mirinda 1,5L', price: 11500.00 },
+                    { id: 'gaseosa_31', name: 'Pack Mirinda 2,25L', price: 7000.00 }, // ¿Menor precio que 1.5L?
+                    { id: 'gaseosa_32', name: 'Pack Mirinda 3L Naranja', price: 11000.00 },
+                    { id: 'gaseosa_33', name: 'Pack Mirinda 500ml', price: 10000.00 },
+                    { id: 'gaseosa_34', name: 'Pack Mirinda, Seven, Pepsi 3L', price: 30000.00 }, // Surtido
+                    { id: 'gaseosa_35', name: 'Pack Paso de los Toros 1,5L', price: 11500.00 },
+                    { id: 'gaseosa_36', name: 'Pack Paso de los Toros 500ml', price: 9500.00 },
+                    { id: 'gaseosa_37', name: 'Pack Pepsi 1,5L', price: 10000.00 },
+                    { id: 'gaseosa_38', name: 'Pack Pepsi 2 Litros', price: 10000.00 },
+                    { id: 'gaseosa_39', name: 'Pack Pepsi 2,25L', price: 10000.00 },
+                    { id: 'gaseosa_40', name: 'Pack Pepsi 3L', price: 15000.00 },
+                    { id: 'gaseosa_41', name: 'Pack Pepsi 500ml', price: 10000.00 },
+                    { id: 'gaseosa_42', name: 'Pack Pepsi x6', price: 4750.00 }, // Latas o botellas chicas?
+                    { id: 'gaseosa_43', name: 'Pack Pepsi/Seven 2,25L SURTIDA', price: 13000.00 },
+                    { id: 'gaseosa_44', name: 'Pack Secco 1 Sabor', price: 7300.00 }, // Tamaño?
+                    { id: 'gaseosa_45', name: 'Pack Secco 2L', price: 3000.00 },
+                    { id: 'gaseosa_46', name: 'Pack Secco 500ml x6', price: 2600.00 },
+                    { id: 'gaseosa_47', name: 'Pack Secco SABORES', price: 7800.00 }, // Surtido, tamaño?
+                    { id: 'gaseosa_48', name: 'Pack Secco Sin Azucar 3L', price: 4000.00 },
+                    { id: 'gaseosa_49', name: 'Pack Seven 500ml', price: 10000.00 },
+                    { id: 'gaseosa_50', name: 'Pack Seven Descartable 2.25', price: 8000.00 },
+                    { id: 'gaseosa_51', name: 'Pack Seven Up 1,5L', price: 11500.00 },
+                    { id: 'gaseosa_52', name: 'Pack Seven Up 2,25L', price: 10000.00 },
+                    { id: 'gaseosa_53', name: 'Pack Seven Up 3L', price: 9000.00 }, // ¿Menor precio que 2.25L?
+                    { id: 'gaseosa_54', name: 'Pack Sprite 2.25', price: 17500.00 },
+                    { id: 'gaseosa_55', name: 'Pack Talca 3L SOLO 1 SABOR', price: 8200.00 },
+                    { id: 'gaseosa_56', name: 'Promo Pepsi 2,25 + Seven 3L', price: 20000.00 },
+                    { id: 'gaseosa_57', name: 'Promo Pepsi 2L + Seven 2,25 + Mirinda', price: 25000.00 },
+                    { id: 'gaseosa_58', name: 'Schweppes Pomelo 1,5L', price: 2500.00 },
+                    { id: 'gaseosa_59', name: 'Schweppes Pomelo 2L Retornable', price: 2400.00 },
+                    { id: 'gaseosa_60', name: 'Schweppes Pomelo 500ml', price: 900.00 },
+                    { id: 'gaseosa_61', name: 'Schweppes Tonica 1,5L', price: 2500.00 },
+                    { id: 'gaseosa_62', name: 'Secco Individual', price: 0.00 }, // Precio 0.00
+                    { id: 'gaseosa_63', name: 'Sprite 1,25L Vidrio', price: 1850.00 },
+                    { id: 'gaseosa_64', name: 'Sprite 1,5L', price: 2800.00 },
+                    { id: 'gaseosa_65', name: 'Sprite 1L', price: 1900.00 },
+                    { id: 'gaseosa_66', name: 'Sprite 2,25L', price: 3000.00 },
+                    { id: 'gaseosa_67', name: 'Sprite 2L Retornable', price: 2400.00 },
+                    { id: 'gaseosa_68', name: 'Sprite 500ml', price: 1000.00 },
+                ]
+            },
+            {
+                categoryName: "Gin",
+                items: [
+                    { id: 'gin_0', name: 'Gin Gordon\'s', price: 10400.00 }, // Tamaño?
+                    { id: 'gin_1', name: 'Gin Spirito Blu', price: 9150.00 }, // Tamaño?
+                ]
+            },
+            {
+                categoryName: "Golosinas",
+                items: [
+                    { id: 'golosina_0', name: 'Air Pop Chupetin x1', price: 2100.00 }, // Caja?
+                    { id: 'golosina_1', name: 'Alka Cherry x200gr', price: 2100.00 },
+                    { id: 'golosina_2', name: 'Azuquita Palito c/Billetes', price: 30.00 },
+                    { id: 'golosina_3', name: 'Bananitas Rosadas x25', price: 2200.00 },
+                    { id: 'golosina_4', name: 'Bazooka Chicle x80', price: 3300.00 },
+                    { id: 'golosina_5', name: 'Beldent Infinit x14', price: 1200.00 },
+                    { id: 'golosina_6', name: 'Beldent Infinit x7', price: 600.00 },
+                    { id: 'golosina_7', name: 'Billiken Confitados x50gr', price: 750.00 },
+                    { id: 'golosina_8', name: 'Bolsa Caramelo de Miel Misky', price: 4900.00 },
+                    { id: 'golosina_9', name: 'Bolsa Caramelos Alka', price: 7200.00 },
+                    { id: 'golosina_10', name: 'Bolsa Caramelos Baston Viena x470gr', price: 3200.00 },
+                    { id: 'golosina_11', name: 'Bolsa Caramelos Billiken', price: 3400.00 },
+                    { id: 'golosina_12', name: 'Bolsa Caramelos Gajitos x485gr', price: 3400.00 },
+                    { id: 'golosina_13', name: 'Bolsa Caramelos Media Hora', price: 10300.00 },
+                    { id: 'golosina_14', name: 'Bolsa Masticables Misky', price: 4900.00 },
+                    { id: 'golosina_15', name: 'Bolsa Medallon de Fruta Misky x810gr', price: 4900.00 },
+                    { id: 'golosina_16', name: 'Bolsa Palito de la Selva', price: 6600.00 },
+                    { id: 'golosina_17', name: 'Bombon Billiken Blister', price: 4700.00 },
+                    { id: 'golosina_18', name: 'Bubbaloo x60u', price: 5200.00 },
+                    { id: 'golosina_19', name: 'Bubble Roll', price: 1800.00 },
+                    { id: 'golosina_20', name: 'Caja Beldent Infinit x14', price: 16800.00 },
+                    { id: 'golosina_21', name: 'Caja Beldent Infinit x7', price: 9000.00 },
+                    { id: 'golosina_22', name: 'Calavera Pop Chupetin x1', price: 750.00 }, // Caja?
+                    { id: 'golosina_23', name: 'Caramelo Duro Cherry Mentol', price: 2700.00 }, // Bolsa?
+                    { id: 'golosina_24', name: 'Caramelo Pico Dulce Tubicolor Masticable', price: 3200.00 }, // Bolsa?
+                    { id: 'golosina_25', name: 'Caramelos Clight x1', price: 750.00 }, // Tira?
+                    { id: 'golosina_26', name: 'Caramelos en Blister Alka', price: 2600.00 },
+                    { id: 'golosina_27', name: 'Catch Pop Chupetin x1', price: 1450.00 }, // Caja?
+                    { id: 'golosina_28', name: 'Caty House Pop Chupetin x1', price: 2300.00 }, // Caja?
+                    { id: 'golosina_29', name: 'Catz Pop', price: 2100.00 }, // Caja?
+                    { id: 'golosina_30', name: 'Chicle Fierita x100un', price: 2200.00 },
+                    { id: 'golosina_31', name: 'Chicle Open Fierita Recargado', price: 2300.00 }, // Caja?
+                    { id: 'golosina_32', name: 'Chicle Open Flow', price: 250.00 }, // Display?
+                    { id: 'golosina_33', name: 'Chicle Top Line Seven', price: 600.00 }, // Tira?
+                    { id: 'golosina_34', name: 'Chicles Alka x20', price: 2500.00 },
+                    { id: 'golosina_35', name: 'Chicles Beldent x1', price: 550.00 }, // Tira?
+                    { id: 'golosina_36', name: 'Chicles Beldent x20', price: 10500.00 },
+                    { id: 'golosina_37', name: 'Chupetin Baby Doll x1', price: 450.00 }, // Caja?
+                    { id: 'golosina_38', name: 'Chupetin Bola Loca c/Chicle', price: 2400.00 }, // Caja?
+                    { id: 'golosina_39', name: 'Chupetin Bola Loca Fresh Sandia', price: 2400.00 }, // Caja?
+                    { id: 'golosina_40', name: 'Chupetin Cebollita x40un', price: 1000.00 },
+                    { id: 'golosina_41', name: 'Chupetin Crazy Pop Negro x1', price: 500.00 }, // Caja?
+                    { id: 'golosina_42', name: 'Chupetin Crazy Pop x1', price: 450.00 }, // Caja?
+                    { id: 'golosina_43', name: 'Chupetin Patita', price: 3800.00 }, // Caja?
+                    { id: 'golosina_44', name: 'Chupetin Pelotitas', price: 1600.00 }, // Caja?
+                    { id: 'golosina_45', name: 'Chupetin Pico Dulce', price: 6700.00 }, // Caja?
+                    { id: 'golosina_46', name: 'Chupetin Push Pop x20', price: 10100.00 },
+                    { id: 'golosina_47', name: 'Chupetin x1', price: 110.00 }, // Genérico
+                    { id: 'golosina_48', name: 'Coco Pop Chupetin x1', price: 2050.00 }, // Caja?
+                    { id: 'golosina_49', name: 'Cubanitos Chocostar X1', price: 80.00 },
+                    { id: 'golosina_50', name: 'Doggy Pop x1', price: 2500.00 }, // Caja?
+                    { id: 'golosina_51', name: 'Emoti Pop Chupetin x1', price: 1850.00 }, // Caja?
+                    { id: 'golosina_52', name: 'Flynn Paff x70un', price: 4900.00 },
+                    { id: 'golosina_53', name: 'Frosty Pop Chupetin x1', price: 1700.00 }, // Caja?
+                    { id: 'golosina_54', name: 'Fun Pop Bocas', price: 1400.00 }, // Caja?
+                    { id: 'golosina_55', name: 'Gallina Coquita', price: 2450.00 }, // Juguete con dulces?
+                    { id: 'golosina_56', name: 'Gallinitas Guegos x25', price: 3300.00 }, // Huevos con sorpresa?
+                    { id: 'golosina_57', name: 'Gomitas Billiken x30gr', price: 350.00 },
+                    { id: 'golosina_58', name: 'Gomitas Eucalipto Misky x1kg', price: 5700.00 },
+                    { id: 'golosina_59', name: 'Gomitas Piñata Huesos/Pete x700gr', price: 3600.00 },
+                    { id: 'golosina_60', name: 'Gomitas Piñata Surtidas x700gr', price: 3600.00 },
+                    { id: 'golosina_61', name: 'Gomitas Rollo Misky', price: 3200.00 }, // Caja?
+                    { id: 'golosina_62', name: 'Gomitas Zone Burger x1', price: 200.00 },
+                    { id: 'golosina_63', name: 'Halls Negro x1', price: 600.00 }, // Tira?
+                    { id: 'golosina_64', name: 'Heladito Manduvi x30', price: 1600.00 },
+                    { id: 'golosina_65', name: 'Huevo Face Minions x1', price: 650.00 },
+                    { id: 'golosina_66', name: 'Krommy Chocolate-Frutilla x24', price: 3200.00 },
+                    { id: 'golosina_67', name: 'La Yapa x1', price: 250.00 },
+                    { id: 'golosina_68', name: 'Laser Pop Chupetin x1', price: 1700.00 }, // Caja?
+                    { id: 'golosina_69', name: 'Lenguetazo Tutti Frutti', price: 160.00 },
+                    { id: 'golosina_70', name: 'Malvaviscos Gongys x28gr', price: 230.00 },
+                    { id: 'golosina_71', name: 'Masticables Paysandu SHERIFF x222gr', price: 1200.00 },
+                    { id: 'golosina_72', name: 'Menta Cristal Misky x800gr', price: 6200.00 },
+                    { id: 'golosina_73', name: 'Mentitas DRF x1', price: 250.00 },
+                    { id: 'golosina_74', name: 'Mielcita Chica x1', price: 60.00 },
+                    { id: 'golosina_75', name: 'Mielcita Mediana x1', price: 100.00 },
+                    { id: 'golosina_76', name: 'Mogul Anillitos 1kg', price: 5700.00 },
+                    { id: 'golosina_77', name: 'Mogul Dientes x500gr', price: 3300.00 },
+                    { id: 'golosina_78', name: 'Mogul Frutal 1kg', price: 5700.00 },
+                    { id: 'golosina_79', name: 'Mogul Frutillas Acidas x500gr', price: 3300.00 },
+                    { id: 'golosina_80', name: 'Mogul Gusanitos Acidos x500gr', price: 3300.00 },
+                    { id: 'golosina_81', name: 'Mogul Ositos x500gr', price: 3300.00 },
+                    { id: 'golosina_82', name: 'Mogul Sandia x500gr', price: 3300.00 }, // Duplicado
+                    { id: 'golosina_83', name: 'Pastillas Biyu/Bull Dog x1', price: 350.00 },
+                    { id: 'golosina_84', name: 'Pastillas Lucky x385gr', price: 2200.00 },
+                    { id: 'golosina_85', name: 'Pistolita Pop Chupetin x1', price: 1900.00 }, // Caja?
+                    { id: 'golosina_86', name: 'Puppy House', price: 2300.00 }, // Juguete?
+                    { id: 'golosina_87', name: 'Regaliz Bull Dog 18gr', price: 250.00 },
+                    { id: 'golosina_88', name: 'Rollo Gomita Mogul Acidas/Clasicas', price: 500.00 },
+                    { id: 'golosina_89', name: 'Rollo Mogul Acidas/Clasica x12', price: 4800.00 },
+                    { id: 'golosina_90', name: 'Rompe Muelas x1', price: 70.00 },
+                    { id: 'golosina_91', name: 'Shark Pop', price: 2350.00 }, // Caja?
+                    { id: 'golosina_92', name: 'Sport Pop Chupetin x1', price: 1850.00 }, // Caja?
+                    { id: 'golosina_93', name: 'Tembleke Delijelly Snack', price: 1050.00 }, // Caja?
+                    { id: 'golosina_94', name: 'Tembleke Tira x 6', price: 850.00 },
+                    { id: 'golosina_95', name: 'Tic Tac x1', price: 630.00 },
+                    { id: 'golosina_96', name: 'Uni Pop', price: 2050.00 }, // Caja?
+                    { id: 'golosina_97', name: 'Wachy Monkey Pop', price: 2600.00 }, // Caja?
+                    { id: 'golosina_98', name: 'Xtreme Caramelo Masticable', price: 450.00 }, // Tira?
+                    { id: 'golosina_99', name: 'Yelin Paletas', price: 1700.00 }, // Caja?
+                    { id: 'golosina_100', name: 'Yummy Gomitas x1', price: 350.00 },
+                ]
+            },
+            {
+                categoryName: "Harinas",
+                items: [
+                    { id: 'harina_0', name: 'Harina 000 1Kg CAÑUELAS', price: 700.00 },
+                    { id: 'harina_1', name: 'Harina 000 Barbara 1kg', price: 580.00 },
+                    { id: 'harina_2', name: 'Harina 000 MORIXE', price: 650.00 },
+                    { id: 'harina_3', name: 'Harina 0000 1Kg Florencia', price: 900.00 },
+                    { id: 'harina_4', name: 'Harina 0000 MORIXE', price: 800.00 },
+                    { id: 'harina_5', name: 'Harina Blancaflor Integral 1kg', price: 1300.00 },
+                    { id: 'harina_6', name: 'Harina Chacabuco X 1 Kg', price: 700.00 },
+                    { id: 'harina_7', name: 'Harina Con Levadura Pizzas Pureza X 1', price: 700.00 },
+                    { id: 'harina_8', name: 'Harina Con Masa Madre Pizza Pureza X 1', price: 1500.00 },
+                    { id: 'harina_9', name: 'Harina Corona Leudante 1Kg', price: 970.00 },
+                    { id: 'harina_10', name: 'Harina Favorita 000', price: 730.00 },
+                    { id: 'harina_11', name: 'Harina Florencia 000 x 1kg', price: 650.00 },
+                    { id: 'harina_12', name: 'Harina Graciela 0000 1kg', price: 800.00 },
+                    { id: 'harina_13', name: 'Harina Leudante 1Kg Florencia', price: 1000.00 },
+                    { id: 'harina_14', name: 'Harina Leudante Blancaflor X 1 Kg', price: 1100.00 },
+                    { id: 'harina_15', name: 'Harina p/Pizzas Morixe', price: 950.00 },
+                    { id: 'harina_16', name: 'Harina Pureza 0000 1kg', price: 900.00 },
+                    { id: 'harina_17', name: 'Harina Pureza Leudante', price: 1400.00 },
+                    { id: 'harina_18', name: 'Harina Pureza p/Pizza 1Kg', price: 1000.00 },
+                    { id: 'harina_19', name: 'Pan Rallado MORIXE', price: 800.00 }, // Peso?
+                ]
+            },
+            {
+                categoryName: "Higiene Personal",
+                items: [
+                    { id: 'higiene_0', name: 'Aerosol Ciel', price: 2200.00 },
+                    { id: 'higiene_1', name: 'Aerosol Dove', price: 2200.00 },
+                    { id: 'higiene_2', name: 'Algabo GEL 150gr', price: 1380.00 },
+                    { id: 'higiene_3', name: 'Algabo TALCO 200gr', price: 1700.00 },
+                    { id: 'higiene_4', name: 'Algabo TALCO Antibacterial 200gr', price: 1760.00 },
+                    { id: 'higiene_5', name: 'Bronceador Cocoa Beach F15', price: 10100.00 },
+                    { id: 'higiene_6', name: 'Cepillo de Dientes Close Up/Colgate x1', price: 1350.00 },
+                    { id: 'higiene_7', name: 'Cocoa Beach Post Solar 250gr', price: 5470.00 },
+                    { id: 'higiene_8', name: 'Cocoa Beach Protector Solar F30 x200gr', price: 9200.00 },
+                    { id: 'higiene_9', name: 'Crema Hinds Rosa 75gr', price: 1600.00 },
+                    { id: 'higiene_10', name: 'Crema para Afeitar 150gr', price: 4195.31 }, // Marca?
+                    { id: 'higiene_11', name: 'Dentrifico ODOL 180gr', price: 2650.00 },
+                    { id: 'higiene_12', name: 'Dentrifico ODOL 90gr', price: 1150.00 },
+                    { id: 'higiene_13', name: 'Desodorante Dove Roll On', price: 1750.00 },
+                    { id: 'higiene_14', name: 'Desodorante Rexona en Aerosol x150ml', price: 2150.00 },
+                    { id: 'higiene_15', name: 'Dove Doypack x180ml', price: 1800.00 }, // Shampoo/Acond?
+                    { id: 'higiene_16', name: 'Efficient Aerosol x153gr', price: 2720.00 }, // Desodorante?
+                    { id: 'higiene_17', name: 'Enguaje Bucal Colgate', price: 4500.00 }, // Tamaño?
+                    { id: 'higiene_18', name: 'Espuma para Afeitar NIVEA 200gr', price: 6400.00 },
+                    { id: 'higiene_19', name: 'Gillette Hojas de Afeitar 5uni', price: 1300.00 },
+                    { id: 'higiene_20', name: 'Gillette Mach3 Sensitive x8', price: 18700.00 },
+                    { id: 'higiene_21', name: 'Gillette Prestobarba 2', price: 1050.00 },
+                    { id: 'higiene_22', name: 'Headshoulders x180ml', price: 3950.00 },
+                    { id: 'higiene_23', name: 'Headshoulders x300ml', price: 7050.00 }, // PDF dice 300ml, no 400ml como antes
+                    { id: 'higiene_24', name: 'Headshoulders x375ml', price: 6550.00 },
+                    { id: 'higiene_25', name: 'Hisopo Algabo', price: 1750.00 }, // Cantidad?
+                    { id: 'higiene_26', name: 'Hisopo Estrella x100', price: 1450.00 },
+                    { id: 'higiene_27', name: 'Hisopos Dismar x100un', price: 950.00 },
+                    { id: 'higiene_28', name: 'Jabon Campos Verde x1', price: 590.00 },
+                    { id: 'higiene_29', name: 'Jabon en Barra Plusbelle 1x125gr', price: 650.00 },
+                    { id: 'higiene_30', name: 'Jabon en Barra Plusbelle 3x125gr', price: 1900.00 },
+                    { id: 'higiene_31', name: 'Jabon en Pan ALA', price: 900.00 },
+                    { id: 'higiene_32', name: 'Jabon Liquido Plusbelle 250ml', price: 1600.00 },
+                    { id: 'higiene_33', name: 'Maquina Afeitar Gillete 2 Rosa', price: 1200.00 },
+                    { id: 'higiene_34', name: 'Maquina Afeittar Bic Sensitive Amarilla', price: 550.00 },
+                    { id: 'higiene_35', name: 'Maquina de Afeitar ASTRA x1', price: 750.00 },
+                    { id: 'higiene_36', name: 'Maquina de Afeitar Bic Confort2', price: 850.00 },
+                    { id: 'higiene_37', name: 'Maquina de Afeitar BIC FLEX2', price: 970.00 },
+                    { id: 'higiene_38', name: 'Maquina de Afeitar CONFORT3', price: 1200.00 },
+                    { id: 'higiene_39', name: 'Maquina de Afeitar FLEX3', price: 1320.00 },
+                    { id: 'higiene_40', name: 'Maquina de Afeitar Prestobarba Gillete x5', price: 4600.00 },
+                    { id: 'higiene_41', name: 'Maquina de Afeitar SOLEIL', price: 1300.00 },
+                    { id: 'higiene_42', name: 'Maquina de Afeitar Venus', price: 2350.00 },
+                    { id: 'higiene_43', name: 'Minora', price: 850.00 }, // Qué es?
+                    { id: 'higiene_44', name: 'Nivea en Lata x60ml', price: 1900.00 },
+                    { id: 'higiene_45', name: 'Nivea Roll On', price: 1450.00 },
+                    { id: 'higiene_46', name: 'Oleo Crema p/Peinar 300ml', price: 1100.00 }, // Marca?
+                    { id: 'higiene_47', name: 'Oleo Tratamiento Capilar x400ml', price: 1100.00 }, // Marca?
+                    { id: 'higiene_48', name: 'Pantene Shampoo 400ml', price: 4750.00 },
+                    { id: 'higiene_49', name: 'Papel Higienico Higienol Texturado', price: 1300.00 }, // Cantidad?
+                    { id: 'higiene_50', name: 'Pasta de Diente CLOUSE UP', price: 2200.00 }, // Tamaño?
+                    { id: 'higiene_51', name: 'Pasta de Dientes Colgate x70gr', price: 1750.00 },
+                    { id: 'higiene_52', name: 'Pasta de Dientes Kolynos x70gr', price: 1150.00 },
+                    { id: 'higiene_53', name: 'Pasta de Dientes Oral B', price: 1800.00 }, // Tamaño?
+                    { id: 'higiene_54', name: 'Pasta ORAL-B p/Niños', price: 3900.00 }, // Tamaño?
+                    { id: 'higiene_55', name: 'Paw Patrol 3 en 1', price: 11000.00 }, // Shampoo?
+                    { id: 'higiene_56', name: 'Pañuelo Candela x6', price: 1150.00 },
+                    { id: 'higiene_57', name: 'Perfume Paco', price: 3550.00 },
+                    { id: 'higiene_58', name: 'Plusbelle Esencia Negro x970ml', price: 2850.00 }, // Shampoo/Acond?
+                    { id: 'higiene_59', name: 'Pomada Washington x30gr', price: 2600.00 },
+                    { id: 'higiene_60', name: 'Preservativos MAX', price: 1550.00 },
+                    { id: 'higiene_61', name: 'Preservativos Prime', price: 1900.00 },
+                    { id: 'higiene_62', name: 'Preservativos Tulipan', price: 1500.00 },
+                    { id: 'higiene_63', name: 'Prestobarba Gillette Mujer', price: 1150.00 },
+                    { id: 'higiene_64', name: 'Prestobarba Gillette Piel Sensible 3', price: 1600.00 },
+                    { id: 'higiene_65', name: 'Protector Diario Doncella x20', price: 710.00 },
+                    { id: 'higiene_66', name: 'Protector Solar Cocoa Beach F45', price: 8850.00 },
+                    { id: 'higiene_67', name: 'Protector Solar Cocoa Beach F50', price: 10200.00 },
+                    { id: 'higiene_68', name: 'Protectores Calipso Multiestilo', price: 860.00 },
+                    { id: 'higiene_69', name: 'Protectores Diarios Doncella', price: 650.00 }, // Cantidad?
+                    { id: 'higiene_70', name: 'Protectores Diarios Ladysoft', price: 970.00 }, // Cantidad?
+                    { id: 'higiene_71', name: 'Protectores Diarios Lina', price: 1000.00 }, // Cantidad?
+                    { id: 'higiene_72', name: 'Quitaesmalte Algabo x50ml', price: 850.00 },
+                    { id: 'higiene_73', name: 'Repuesto de Gillette Mach3 Sensitive x1', price: 2600.00 },
+                    { id: 'higiene_74', name: 'Rexona Aerosol Odoro x150ml', price: 2000.00 },
+                    { id: 'higiene_75', name: 'Rexona Odoro Pote x60gr', price: 1550.00 },
+                    { id: 'higiene_76', name: 'Servilletas Sussex 3x150', price: 1200.00 }, // Pertenece a Descartables o Limpieza
+                    { id: 'higiene_77', name: 'Shampoo Esencia Doy Pack x300ml', price: 1150.00 },
+                    { id: 'higiene_78', name: 'Shampoo Sachet Pantene 10ml', price: 150.00 },
+                    { id: 'higiene_79', name: 'Shampoo Sedal D/P x300ml', price: 2250.00 },
+                    { id: 'higiene_80', name: 'Shampoo/Acondicionador Hadibell 930ml', price: 1450.00 },
+                    { id: 'higiene_81', name: 'Shampoo/Acondicionador Plusbelle 1L', price: 2400.00 },
+                    { id: 'higiene_82', name: 'Shampoo/Acondicionador Suave 930ml', price: 1950.00 },
+                    { id: 'higiene_83', name: 'Shampoo/Acondicionador SEDAL 190ml', price: 1600.00 },
+                    { id: 'higiene_84', name: 'Shampoo/Acondicionador SEDAL 650ml', price: 4950.00 },
+                    { id: 'higiene_85', name: 'Shampoo/Acondicionador Sedal x340ml', price: 3100.00 },
+                    { id: 'higiene_86', name: 'Shampoo/Acondicionador Dove 200ml', price: 1950.00 },
+                    { id: 'higiene_87', name: 'Shampoo/Acondicionador Pantene 200ml', price: 2700.00 },
+                    { id: 'higiene_88', name: 'Talco Efficient Rexona x100gr', price: 1750.00 },
+                    { id: 'higiene_89', name: 'Talco Efficient Talco x200gr', price: 2850.00 },
+                    { id: 'higiene_90', name: 'Tampones Kotex G', price: 4950.00 }, // Tamaño G
+                    { id: 'higiene_91', name: 'Toallitas Always x8', price: 1150.00 },
+                    { id: 'higiene_92', name: 'Toallitas c/Alas Doncella x8', price: 650.00 },
+                    { id: 'higiene_93', name: 'Toallitas c/Alas Tanga Doncella x8', price: 740.00 },
+                    { id: 'higiene_94', name: 'Toallitas Calipso', price: 550.00 }, // Cantidad?
+                    { id: 'higiene_95', name: 'Toallitas Calipso x16', price: 1100.00 },
+                    { id: 'higiene_96', name: 'Toallitas Ladysoft x24', price: 3300.00 },
+                    { id: 'higiene_97', name: 'Toallitas Lina Nocturnas x8', price: 1550.00 },
+                    { id: 'higiene_98', name: 'Toallitas Lina x8', price: 650.00 },
+                    { id: 'higiene_99', name: 'Toallitas Nosotras', price: 900.00 }, // Cantidad?
+                ]
+            },
+            {
+                categoryName: "Huevos",
+                items: [
+                    { id: 'huevo_0', name: 'Maple de Huevos Grande', price: 6700.00 },
+                    { id: 'huevo_1', name: 'Maple Huevo Mediano', price: 6100.00 },
+                    { id: 'huevo_2', name: 'Maple Huevos Chicos', price: 5700.00 },
+                ]
+            },
+            {
+                categoryName: "Insecticida",
+                items: [
+                    { id: 'insecticida_0', name: 'Aromatizante en Aerosol Glade 380ml', price: 1750.00 }, // Esto podría ir en Limpieza
+                    { id: 'insecticida_1', name: 'Baygon MMM x300ml', price: 2800.00 },
+                    { id: 'insecticida_2', name: 'Espirales Raid Sobre x2', price: 600.00 },
+                    { id: 'insecticida_3', name: 'Fuyi en Aerosol', price: 3000.00 },
+                    { id: 'insecticida_4', name: 'Fuyi Espirales', price: 2560.00 }, // Caja?
+                    { id: 'insecticida_5', name: 'Glade Mini Gel', price: 2220.00 }, // Esto podría ir en Limpieza
+                    { id: 'insecticida_6', name: 'OFF Aerosol Family 165ml', price: 5200.00 },
+                    { id: 'insecticida_7', name: 'OFF Crema 60gr', price: 2300.00 },
+                    { id: 'insecticida_8', name: 'OFF Crema Family x196gr', price: 4000.00 },
+                    { id: 'insecticida_9', name: 'Off Defense Bebe Gel 100ml', price: 9400.00 }, // Duplicado con diferentes precios
+                    { id: 'insecticida_10', name: 'Off Defense Bebe Gel x100ml', price: 12800.00 },
+                    { id: 'insecticida_11', name: 'Off Defense Extreme Gel x100ml', price: 11800.00 },
+                    { id: 'insecticida_12', name: 'Off Invisible Kids 100ml', price: 7350.00 },
+                    { id: 'insecticida_13', name: 'OFF Spray Family x177ml', price: 7300.00 },
+                    { id: 'insecticida_14', name: 'Off Sueños x100ml', price: 10600.00 },
+                    { id: 'insecticida_15', name: 'Raid Antipolilla x360ml', price: 4500.00 },
+                    { id: 'insecticida_16', name: 'Raid Aparato p/Tabletas', price: 6000.00 },
+                    { id: 'insecticida_17', name: 'Raid Casa y Jardin', price: 4580.00 }, // Tamaño?
+                    { id: 'insecticida_18', name: 'Raid Espiral x12 Lavanda', price: 1900.00 },
+                    { id: 'insecticida_19', name: 'Raid Espirales x12u', price: 1900.00 },
+                    { id: 'insecticida_20', name: 'Raid MMM en Aerosol', price: 4400.00 }, // Tamaño?
+                    { id: 'insecticida_21', name: 'Raid MMM Sin Olor en Aerosol', price: 5500.00 }, // Tamaño?
+                    { id: 'insecticida_22', name: 'Raid Negro Cucarachas', price: 4000.00 }, // Tamaño?
+                    { id: 'insecticida_23', name: 'Selton Rojo', price: 2350.00 }, // Insecticida?
+                    { id: 'insecticida_24', name: 'Tableta Raid x12', price: 2800.00 },
+                    { id: 'insecticida_25', name: 'Tableta Raid x24', price: 4200.00 },
+                    { id: 'insecticida_26', name: 'Tabletas Fuyi', price: 2800.00 }, // Cantidad?
+                ]
+            },
+            {
+                categoryName: "Jugo para Congelar",
+                items: [
+                    { id: 'jugocong_0', name: 'Jugo Dulcin', price: 2200.00 }, // Pack?
+                ]
+            },
+            {
+                categoryName: "Jugos",
+                items: [
+                    { id: 'jugo_0', name: 'Ades 1L', price: 2000.00 },
+                    { id: 'jugo_1', name: 'Ades en Caja 200ml', price: 700.00 },
+                    { id: 'jugo_2', name: 'Baggio Pronto x125ml', price: 250.00 },
+                    { id: 'jugo_3', name: 'Cepita 1,5L', price: 2250.00 },
+                    { id: 'jugo_4', name: 'Cepita 1L', price: 1850.00 },
+                    { id: 'jugo_5', name: 'Cepita en Caja 200ml', price: 600.00 },
+                    { id: 'jugo_6', name: 'Jugo en Polvo BC x18', price: 4100.00 },
+                    { id: 'jugo_7', name: 'Jugo Baggio Fresh 200ml', price: 300.00 },
+                    { id: 'jugo_8', name: 'Jugo BC 200ml', price: 350.00 }, // Listo para tomar?
+                    { id: 'jugo_9', name: 'Jugo Cepita 300ml', price: 850.00 },
+                    { id: 'jugo_10', name: 'Jugo Cepita en Caja 1L', price: 1300.00 },
+                    { id: 'jugo_11', name: 'Jugo Citric Naranja 1,5L', price: 3950.00 },
+                    { id: 'jugo_12', name: 'Jugo Citric Naranja 1L', price: 2900.00 },
+                    { id: 'jugo_13', name: 'Jugo Clight x20u', price: 4300.00 },
+                    { id: 'jugo_14', name: 'Jugo en Polvo Rinde Dos x20', price: 4800.00 }, // D2 en PDF, asumo Rinde Dos
+                    { id: 'jugo_15', name: 'Jugo en Sobre', price: 450.00 }, // Genérico
+                    { id: 'jugo_16', name: 'Jugo Rinde Dos x10u', price: 3000.00 },
+                    { id: 'jugo_17', name: 'Jugo Tang x20u', price: 4300.00 },
+                ]
+            },
+            {
+                categoryName: "Leche",
+                items: [
+                    { id: 'leche_0', name: 'Leche Angelita 1L', price: 1250.00 },
+                    { id: 'leche_1', name: 'Leche Armonia 1L', price: 1450.00 },
+                    { id: 'leche_2', name: 'Leche Descremada APOSTOLES', price: 1500.00 }, // Tamaño?
+                    { id: 'leche_3', name: 'Leche Descremada Purisima 200gr', price: 1850.00 }, // Polvo
+                    { id: 'leche_4', name: 'Leche en Polvo Armonia x400gr', price: 3650.00 },
+                    { id: 'leche_5', name: 'Leche en Polvo Descremada Serenisima', price: 4650.00 }, // Tamaño?
+                    { id: 'leche_6', name: 'Leche en Polvo Entera Serenisima x800gr', price: 7800.00 },
+                    { id: 'leche_7', name: 'Leche en Polvo LA LECHERA x400gr', price: 3200.00 }, // PDF dice Leche La lechera en polvo x400gr
+                    { id: 'leche_8', name: 'Leche en Polvo LA LECHERA x800gr', price: 6600.00 },
+                    { id: 'leche_9', name: 'Leche en Polvo Milano x800gr', price: 3300.00 },
+                    { id: 'leche_10', name: 'Leche en Polvo Mundo Lacteo x800gr', price: 4300.00 },
+                    { id: 'leche_11', name: 'Leche La Serenisima de Barista 1L', price: 1850.00 },
+                    { id: 'leche_12', name: 'Leche La Serenisima de Proteina 1L', price: 1850.00 },
+                    { id: 'leche_13', name: 'Leche La Serenisima Descremada 1L', price: 1850.00 },
+                    { id: 'leche_14', name: 'Leche La Serenisima Deslactosada 1L', price: 1850.00 },
+                    { id: 'leche_15', name: 'Leche La Serenisima Entera 1L', price: 1800.00 },
+                    { id: 'leche_16', name: 'Leche Manfrey 1L', price: 1100.00 },
+                    { id: 'leche_17', name: 'Leche MILKAUT', price: 1450.00 }, // Tamaño?
+                    { id: 'leche_18', name: 'Leche Nido 3 Lata Roja', price: 11700.00 }, // Tamaño?
+                    { id: 'leche_19', name: 'Leche Nido Fortigrow 370gr', price: 3550.00 },
+                    { id: 'leche_20', name: 'Leche Veronica 1L', price: 1400.00 },
+                    { id: 'leche_21', name: 'Nido Fortigrow Lata 750gr', price: 7670.00 },
+                    { id: 'leche_22', name: 'Yogurt Tres Niñas x190gr', price: 800.00 }, // Esto es Yogurt, no Leche
+                ]
+            },
+            {
+                categoryName: "Legumbres",
+                items: [
+                    { id: 'legumbre_0', name: 'Choclo Cremoso en Lata x300gr', price: 1200.00 },
+                    { id: 'legumbre_1', name: 'Choclo en Grano en Lata x300gr', price: 1050.00 },
+                    { id: 'legumbre_2', name: 'Garbanzo Cadea 400g', price: 1500.00 },
+                    { id: 'legumbre_3', name: 'Lenteja Abadia 400g', price: 1050.00 },
+                    { id: 'legumbre_4', name: 'Lenteja Baronesa 400gr', price: 960.00 },
+                    { id: 'legumbre_5', name: 'Maiz Cadea Pisingallo 400g', price: 1050.00 },
+                    { id: 'legumbre_6', name: 'Maiz Partido Blanco 400gr', price: 900.00 },
+                    { id: 'legumbre_7', name: 'Poroto Alubia Abadia 400g', price: 1350.00 },
+                    { id: 'legumbre_8', name: 'Poroto Cadea Negro 500g', price: 2700.00 },
+                    { id: 'legumbre_9', name: 'Porotos Colorados en Lata x300gr', price: 800.00 },
+                    { id: 'legumbre_10', name: 'Porotos Negros en Lata x300gr', price: 950.00 },
+                ]
+            },
+            {
+                categoryName: "Limpieza",
+                items: [
+                    { id: 'limpieza_0', name: 'Ace Clasico P/Diluir /+ Botella', price: 5550.00 },
+                    { id: 'limpieza_1', name: 'Ace Clasico P/Diluir x500ml', price: 4450.00 },
+                    { id: 'limpieza_2', name: 'Ace Clasico Pouch x800ml', price: 1900.00 },
+                    { id: 'limpieza_3', name: 'Ace en Polvo x400gr', price: 900.00 },
+                    { id: 'limpieza_4', name: 'Aerosol Blem 360ml', price: 3200.00 },
+                    { id: 'limpieza_5', name: 'Aerosol Desifectante Ayudin', price: 2700.00 }, // Tamaño?
+                    { id: 'limpieza_6', name: 'Ala Matic x400gr', price: 1050.00 },
+                    { id: 'limpieza_7', name: 'Alcohol Dismar 500ml', price: 1250.00 },
+                    { id: 'limpieza_8', name: 'Ariel en Botella 800ml', price: 2050.00 },
+                    { id: 'limpieza_9', name: 'Ariel Platinum en Botella Para Diluir 800ml', price: 6100.00 },
+                    { id: 'limpieza_10', name: 'Ariel Pouch 3L', price: 6900.00 },
+                    { id: 'limpieza_11', name: 'Aromatizante Textil 150ml Saphirus', price: 1300.00 },
+                    { id: 'limpieza_12', name: 'Aromatizante Textil 250ml Saphirus', price: 2450.00 },
+                    { id: 'limpieza_13', name: 'Bolsa de Residuos 45x60', price: 350.00 },
+                    { id: 'limpieza_14', name: 'Bolsa de Residuos 60x90', price: 750.00 },
+                    { id: 'limpieza_15', name: 'Bolsa de Residuos 80x110', price: 1350.00 },
+                    { id: 'limpieza_16', name: 'Bolsa Ziploc', price: 1750.00 }, // Tamaño/cantidad?
+                    { id: 'limpieza_17', name: 'Brillapiso Mechudito x500ml', price: 2250.00 },
+                    { id: 'limpieza_18', name: 'Brillapiso Mechudito x900ml', price: 2800.00 },
+                    { id: 'limpieza_19', name: 'Canasta Lysoform', price: 3500.00 },
+                    { id: 'limpieza_20', name: 'Canasta p/Baño VIM', price: 1600.00 },
+                    { id: 'limpieza_21', name: 'Cepillo Lava Auto', price: 2000.00 },
+                    { id: 'limpieza_22', name: 'Ceramicol x360ml', price: 2350.00 },
+                    { id: 'limpieza_23', name: 'Cif en Crema', price: 1950.00 }, // Tamaño?
+                    { id: 'limpieza_24', name: 'Cif Lustra Muebles', price: 1441.00 }, // Tamaño?
+                    { id: 'limpieza_25', name: 'Cif Lustra Muebles x400ml', price: 2750.00 },
+                    { id: 'limpieza_26', name: 'Confort Suavizante x500ml', price: 3650.00 },
+                    { id: 'limpieza_27', name: 'Desodorante de Ambiente en Aerosol', price: 3850.00 }, // Marca/tamaño?
+                    { id: 'limpieza_28', name: 'Desodorante de Piso ODEX x900ml', price: 750.00 },
+                    { id: 'limpieza_29', name: 'Desodorante de Piso VAIS/HEROE', price: 1020.00 }, // Tamaño?
+                    { id: 'limpieza_30', name: 'Detergente Ala x300ML', price: 800.00 },
+                    { id: 'limpieza_31', name: 'Detergente Ala x500ML', price: 1600.00 },
+                    { id: 'limpieza_32', name: 'Detergente Ala x750ML', price: 1850.00 },
+                    { id: 'limpieza_33', name: 'Detergente Cif 500ml', price: 1200.00 },
+                    { id: 'limpieza_34', name: 'Detergente Magistral Cremoso Limon', price: 1400.00 }, // Tamaño?
+                    { id: 'limpieza_35', name: 'Detergente Magistral Limon 1400ml', price: 6650.00 },
+                    { id: 'limpieza_36', name: 'Detergente Magistral Limon 215ml', price: 1150.00 },
+                    { id: 'limpieza_37', name: 'Detergente Magistral Limon 300ml', price: 1400.00 },
+                    { id: 'limpieza_38', name: 'Detergente Magistral Limon 500ml', price: 2450.00 },
+                    { id: 'limpieza_39', name: 'Detergente Magistral Limon 750ml', price: 3300.00 },
+                    { id: 'limpieza_40', name: 'Detergente Magistral Marina 300ml', price: 1500.00 },
+                    { id: 'limpieza_41', name: 'Detergente Magistral Marina 500ml', price: 2500.00 },
+                    { id: 'limpieza_42', name: 'Detergente Magistral Marina 750ml', price: 3150.00 },
+                    { id: 'limpieza_43', name: 'Detergente Magistral Pureza Activa x300ml', price: 1400.00 },
+                    { id: 'limpieza_44', name: 'Detergente Magistral Verde 300ml', price: 1700.00 },
+                    { id: 'limpieza_45', name: 'Detergente Magistral Verde 750ml', price: 4250.00 },
+                    { id: 'limpieza_46', name: 'Detergente Zorro 500ml', price: 1650.00 },
+                    { id: 'limpieza_47', name: 'Downy 400ml', price: 3150.00 },
+                    { id: 'limpieza_48', name: 'Downy 500ml', price: 7800.00 }, // Posiblemente concentrado o tamaño mayor
+                    { id: 'limpieza_49', name: 'Escobilla p/Baños con Deposito', price: 1970.00 },
+                    { id: 'limpieza_50', name: 'Escobillon GondoMax', price: 1900.00 },
+                    { id: 'limpieza_51', name: 'Esponja de Acero x10gr Make', price: 300.00 },
+                    { id: 'limpieza_52', name: 'Esponja Doble Uso Acero Make', price: 1250.00 },
+                    { id: 'limpieza_53', name: 'Esponja Ideal p/Baños', price: 400.00 },
+                    { id: 'limpieza_54', name: 'Esponja Lisa Flexol', price: 600.00 },
+                    { id: 'limpieza_55', name: 'Fibra Verde Multiuso x2', price: 840.00 },
+                    { id: 'limpieza_56', name: 'Granby en Polvo x400gr', price: 600.00 },
+                    { id: 'limpieza_57', name: 'Granby en Polvo x800gr', price: 1100.00 },
+                    { id: 'limpieza_58', name: 'Granby Jabon Liquido x3L', price: 4850.00 },
+                    { id: 'limpieza_59', name: 'Granby Jabon Liquido x800ml', price: 1000.00 },
+                    { id: 'limpieza_60', name: 'Guantes Amarillos', price: 1450.00 }, // Marca/tipo?
+                    { id: 'limpieza_61', name: 'Harpic Bloque de Mochila', price: 3850.00 },
+                    { id: 'limpieza_62', name: 'Harpic x500ml', price: 3150.00 },
+                    { id: 'limpieza_63', name: 'Jabon Dove Clasico x90gr', price: 950.00 }, // Pertenece a Higiene Personal
+                    { id: 'limpieza_64', name: 'Jabon en Pan ARGENTINO', price: 500.00 },
+                    { id: 'limpieza_65', name: 'Jabon Liquido Camellito', price: 1550.00 }, // Tamaño?
+                    { id: 'limpieza_66', name: 'Jabon Liquido p/Diluir Ala + BOTELLA', price: 7150.00 },
+                    { id: 'limpieza_67', name: 'Jabon Liquido Plusbelle 230ml Repuesto', price: 1160.00 }, // Pertenece a Higiene Personal
+                    { id: 'limpieza_68', name: 'Lana de Acero 40gr', price: 1450.00 },
+                    { id: 'limpieza_69', name: 'Lavandina Ayudin 4L', price: 3700.00 },
+                    { id: 'limpieza_70', name: 'Lavandina Ayudin Clasica 1L', price: 1050.00 },
+                    { id: 'limpieza_71', name: 'Lavandina Ayudin Glaciar/Lavanda', price: 1150.00 }, // Tamaño?
+                    { id: 'limpieza_72', name: 'Lavandina en Gel Ayudin x750ml', price: 2270.00 },
+                    { id: 'limpieza_73', name: 'Lavandina VIM Gel', price: 2100.00 }, // Tamaño?
+                    { id: 'limpieza_74', name: 'Limpiador Poet 900ml', price: 1300.00 },
+                    { id: 'limpieza_75', name: 'Lysoform Aerosol 360ml', price: 2100.00 },
+                    { id: 'limpieza_76', name: 'Lysoform Aerosol 380ml', price: 1750.00 }, // Precio diferente para tamaño similar
+                    { id: 'limpieza_77', name: 'Lysoform Aerosol 420ml', price: 2100.00 },
+                    { id: 'limpieza_78', name: 'Lysoform Inodoro Adhesivo', price: 1400.00 },
+                    { id: 'limpieza_79', name: 'Maxi Rollo Vual', price: 1450.00 },
+                    { id: 'limpieza_80', name: 'Mopa 150gr', price: 1150.00 },
+                    { id: 'limpieza_81', name: 'Mr Musculo 450ml', price: 2500.00 },
+                    { id: 'limpieza_82', name: 'Pala Corta Platica Florida', price: 600.00 },
+                    { id: 'limpieza_83', name: 'Palo de Escoba', price: 770.00 },
+                    { id: 'limpieza_84', name: 'Papel Higienico Elegante 4x30mts', price: 1120.00 }, // Categoría propia
+                    { id: 'limpieza_85', name: 'Papel Higienico Simple Noble 4x30mts', price: 990.00 }, // Categoría propia
+                    { id: 'limpieza_86', name: 'Pato Bloque x1', price: 2100.00 },
+                    { id: 'limpieza_87', name: 'Pato Bloque x2', price: 3200.00 },
+                    { id: 'limpieza_88', name: 'Pato Gel Limpiador', price: 3000.00 }, // Tamaño?
+                    { id: 'limpieza_89', name: 'Paño Multiuso Amarillo', price: 550.00 },
+                    { id: 'limpieza_90', name: 'Quitamanchas Zorro x400ml', price: 1000.00 },
+                    { id: 'limpieza_91', name: 'Raid Antipolilla x2', price: 4170.00 }, // Aerosol o tabletas?
+                    { id: 'limpieza_92', name: 'Rejilla Amarilla', price: 450.00 },
+                    { id: 'limpieza_93', name: 'Rejilla Color Amarillo x3', price: 1600.00 },
+                    { id: 'limpieza_94', name: 'Rejilla Pabilo', price: 350.00 },
+                    { id: 'limpieza_95', name: 'Rollo de Cocina Campanita x150', price: 1000.00 },
+                    { id: 'limpieza_96', name: 'Rollo de Cocina Elegante 3x50 Paños', price: 1200.00 },
+                    { id: 'limpieza_97', name: 'Sahumerio Ambar', price: 1050.00 }, // Caja?
+                    { id: 'limpieza_98', name: 'Secador Goma Negra Pisos', price: 1650.00 },
+                    { id: 'limpieza_99', name: 'Shampoo/Acondicionador SEDAL 10ml', price: 150.00 }, // Sachet, Pertenece a Higiene Personal
+                    { id: 'limpieza_100', name: 'Sopapa Negra SUPY', price: 1100.00 },
+                    { id: 'limpieza_101', name: 'Suavizante Gigante Clasico 800ml', price: 1270.00 },
+                    { id: 'limpieza_102', name: 'Suavizante Vivere Clasico 900ml', price: 1850.00 },
+                    { id: 'limpieza_103', name: 'Toallitas Desinfectante Ayudin', price: 3400.00 }, // Cantidad?
+                    { id: 'limpieza_104', name: 'Trapo de Piso', price: 650.00 },
+                    { id: 'limpieza_105', name: 'Vanish Pre Lavado x400ml', price: 1450.00 },
+                    { id: 'limpieza_106', name: 'Zorro Blue Power Botella P/Diluir x500ml', price: 4450.00 },
+                    { id: 'limpieza_107', name: 'Zorro Clasico en Polvo x400gr', price: 850.00 },
+                    { id: 'limpieza_108', name: 'Zorro Evolution Botella P/Diluir x500ml', price: 4950.00 },
+                    { id: 'limpieza_109', name: 'Zorro Liquido 3L', price: 6650.00 },
+                    { id: 'limpieza_110', name: 'Zorro Liquido Para Diluir x800ml', price: 1750.00 },
+                    { id: 'limpieza_111', name: 'Zorro P/Diluir /x150ml', price: 810.00 },
+                    { id: 'limpieza_112', name: 'Zorro Quitamanchas en Polvo x400gr', price: 950.00 },
+                    { id: 'limpieza_113', name: 'Zorro Suavizante x900ml', price: 1850.00 },
+                ]
+            },
+            {
+                categoryName: "Mercaderia Varia",
+                items: [
+                    { id: 'varia_0', name: 'Caja Fosforo Rodeo x220u', price: 550.00 },
+                    { id: 'varia_1', name: 'Dini Solucion x1', price: 700.00 }, // Pegamento?
+                    { id: 'varia_2', name: 'Edulcorante Si Diet 250ml', price: 1350.00 }, // Pertenece a Alimentos
+                    { id: 'varia_3', name: 'Foco Led Candela 12w', price: 1000.00 },
+                    { id: 'varia_4', name: 'Foco Led Candela 9w Luz Fria', price: 900.00 },
+                    { id: 'varia_5', name: 'Kit Dini Pegamento + Parche', price: 1000.00 },
+                    { id: 'varia_6', name: 'La Gotita x1', price: 1250.00 },
+                    { id: 'varia_7', name: 'Preservativos PLAYBOY x1', price: 1000.00 }, // Pertenece a Higiene Personal
+                    { id: 'varia_8', name: 'Turron de Mani MISKY x1', price: 140.00 }, // Pertenece a Golosinas/Alfajores
+                    { id: 'varia_9', name: 'Unipox Pegamento x1', price: 1550.00 },
+                ]
+            },
+            {
+                categoryName: "Pañales",
+                items: [
+                    { id: 'panal_0', name: 'Pañales Babysec x30/48', price: 9000.00 }, // Talle?
+                    { id: 'panal_1', name: 'Pañales Babysec x8', price: 1850.00 }, // Talle?
+                    { id: 'panal_2', name: 'Pañales Huggies Clasico x8', price: 2200.00 }, // Talle?
+                    { id: 'panal_3', name: 'Pañales Huggies Classic + Toallitas', price: 14200.00 }, // Talle?
+                    { id: 'panal_4', name: 'Pañales Huggies Classic Ahorro', price: 6100.00 }, // Talle?
+                    { id: 'panal_5', name: 'Pañales Huggies Classic Ahorro XXXG', price: 13450.00 },
+                    { id: 'panal_6', name: 'Pañales Huggies Protect Ahorro M', price: 8000.00 },
+                    { id: 'panal_7', name: 'Pañales Huggies Protect Ahorro P', price: 5500.00 },
+                    { id: 'panal_8', name: 'Pañales Huggies Protect Jumbo P', price: 6050.00 },
+                    { id: 'panal_9', name: 'Pañales Huggies Super Combo x40', price: 8100.00 }, // Talle?
+                    { id: 'panal_10', name: 'Pañales Huggies x8', price: 2400.00 }, // Talle? (Otro Huggies x8)
+                    { id: 'panal_11', name: 'Pañales Huggies XG x32', price: 7600.00 },
+                    { id: 'panal_12', name: 'Pañales Huggies XXG x30', price: 7600.00 },
+                    { id: 'panal_13', name: 'Pañales Pampers x8', price: 4300.00 }, // Talle?
+                    { id: 'panal_14', name: 'Toallitas Humedas Huggies x48', price: 2950.00 }, // Pertenece a Higiene Personal o Pañales
+                ]
+            },
+            {
+                categoryName: "Panificados", // Ya existe una arriba con harinas, esta es más de pan elaborado
+                items: [
+                    { id: 'panificado_0', name: 'Harina Caserita 0000 1kg', price: 850.00 }, // Debería ir en Harinas
+                    { id: 'panificado_1', name: 'Pan de Hamburguesa Argentina', price: 800.00 },
+                    { id: 'panificado_2', name: 'Pan de Hamburguesa Fargo', price: 1650.00 },
+                    { id: 'panificado_3', name: 'Pan de Hamburguesa Veneziana', price: 950.00 },
+                    { id: 'panificado_4', name: 'Pan de Pancho', price: 1350.00 }, // Marca?
+                    { id: 'panificado_5', name: 'Pan de Pancho Argentina', price: 800.00 },
+                    { id: 'panificado_6', name: 'Pan Lactal', price: 1800.00 }, // Marca?
+                    { id: 'panificado_7', name: 'Pan Lactal Salvado', price: 1900.00 }, // Marca?
+                    { id: 'panificado_8', name: 'Rapiditas Clasicas', price: 2250.00 },
+                    { id: 'panificado_9', name: 'Rapiditas Integrales', price: 2200.00 },
+                    { id: 'panificado_10', name: 'Rapiditas XXL', price: 4750.00 },
+                    { id: 'panificado_11', name: 'Veneziana Pan de Pancho 210gr', price: 900.00 },
+                    { id: 'panificado_12', name: 'Veneziana Pan Lacteado x400gr', price: 1450.00 },
+                    { id: 'panificado_13', name: 'Veneziana Pan Lacteado x600gr', price: 2100.00 },
+                ]
+            },
+            {
+                categoryName: "Papel Higienico",
+                items: [
+                    { id: 'papelhig_0', name: 'Grand Family/Calipso Individual x 60mts', price: 350.00 },
+                    { id: 'papelhig_1', name: 'Higienico Calipso Individual x 30 mts', price: 240.00 },
+                    { id: 'papelhig_2', name: 'Higienico Family Eco 4 x 30mts', price: 1000.00 },
+                    { id: 'papelhig_3', name: 'Nyfer 6x30mts', price: 1150.00 },
+                    { id: 'papelhig_4', name: 'Papel Higienico ACME 4x30mts', price: 810.00 },
+                    { id: 'papelhig_5', name: 'Papel Higienico Calipso 24x30mts', price: 5300.00 },
+                    { id: 'papelhig_6', name: 'Papel Higienico Calipso 4 x 30mts', price: 950.00 },
+                    { id: 'papelhig_7', name: 'Papel Higienico Campanita', price: 1000.00 }, // Pack?
+                    { id: 'papelhig_8', name: 'Papel Higienico Cartabella', price: 1200.00 }, // Pack?
+                    { id: 'papelhig_9', name: 'Papel Higienico Family Eco 6x30mts', price: 1550.00 },
+                    { id: 'papelhig_10', name: 'Papel Higienico Felpita 30mts', price: 1350.00 }, // Pack?
+                    { id: 'papelhig_11', name: 'Papel Higienico Felpita 4x80mts', price: 3100.00 },
+                    { id: 'papelhig_12', name: 'Papel Higienico Felpita Doble Hoja 4x30mts', price: 1600.00 },
+                    { id: 'papelhig_13', name: 'Papel Higienico Floripel Suave', price: 1300.00 }, // Pack?
+                    { id: 'papelhig_14', name: 'Papel Higienico HIGIENOL Fresh', price: 1200.00 }, // Pack?
+                    { id: 'papelhig_15', name: 'Papel Higienico Higienol x100mts', price: 3550.00 }, // Pack?
+                    { id: 'papelhig_16', name: 'Papel Higienico Higienol x80mts', price: 3000.00 }, // Pack?
+                    { id: 'papelhig_17', name: 'Papel Higienico Mega Family 4 x 80mts', price: 2350.00 },
+                    { id: 'papelhig_18', name: 'Papel Higienico Nyfer 30mts x1', price: 190.00 },
+                    { id: 'papelhig_19', name: 'Papel Higienico Nyfer 60mts x1', price: 350.00 },
+                ]
+            },
+            {
+                categoryName: "Petaca",
+                items: [
+                    { id: 'petaca_0', name: 'Petaca New Style Cafe al Coñac', price: 1000.00 },
+                    { id: 'petaca_1', name: 'Petaca New Style Piña Colada', price: 950.00 },
+                    { id: 'petaca_2', name: 'Petaca New Style Vodka', price: 850.00 },
+                    { id: 'petaca_3', name: 'Petaca Tres Plumas Anis x200ml', price: 1400.00 },
+                    { id: 'petaca_4', name: 'Petaca Tres Plumas Licor Seco x200ml', price: 1150.00 },
+                    { id: 'petaca_5', name: 'Petakon Petaca x400 ml', price: 1100.00 }, // Whisky? (Referencia a Aperitivos)
+                ]
+            },
+            {
+                categoryName: "Pilas",
+                items: [
+                    { id: 'pila_0', name: 'Pila Energizer AA x1', price: 750.00 },
+                    { id: 'pila_1', name: 'Pila Energizer AAA x1', price: 750.00 },
+                    { id: 'pila_2', name: 'Pila AAA/AA Duracell x2', price: 3900.00 }, // Pertenece a Encendedores en PDF pero es pila
+                ]
+            },
+            {
+                categoryName: "Salsas",
+                items: [
+                    { id: 'salsa_0', name: 'Extracto Tomate Almar x150gr', price: 1100.00 },
+                    { id: 'salsa_1', name: 'Pulpa de Tomate de la Huerta x205gr', price: 330.00 },
+                    { id: 'salsa_2', name: 'Pulpa de Tomate de la Huerta x520gr', price: 580.00 }, // Estaba en Aperitivo
+                    { id: 'salsa_3', name: 'Pure de Tomate Aguaribay x520gr', price: 500.00 },
+                    { id: 'salsa_4', name: 'Pure de Tomate BIG 1040gr', price: 1250.00 },
+                    { id: 'salsa_5', name: 'Pure de Tomate BIG 210gr', price: 400.12 },
+                    { id: 'salsa_6', name: 'Pure de Tomate La Huerta 133gr', price: 300.00 },
+                    { id: 'salsa_7', name: 'Pure de Tomate La Huerta x1030gr', price: 1200.00 },
+                    { id: 'salsa_8', name: 'Pure de Tomate La Huerta x210', price: 370.00 },
+                    { id: 'salsa_9', name: 'Pure de Tomate La Huerta x530gr', price: 650.00 },
+                    { id: 'salsa_10', name: 'Pure de Tomate Noel 210gr', price: 410.00 },
+                    { id: 'salsa_11', name: 'Pure de Tomate Noel 520gr', price: 620.00 },
+                    { id: 'salsa_12', name: 'Pure de Tomate Sabbortucc x520gr', price: 530.00 },
+                    { id: 'salsa_13', name: 'Pure de Tomate Valle Austral 520gr', price: 580.00 },
+                    { id: 'salsa_14', name: 'Pure de Tomates 7 Dias x 530g', price: 640.00 },
+                    { id: 'salsa_15', name: 'Salsa de Tomate en Botella 500ml', price: 1050.00 }, // Marca?
+                    { id: 'salsa_16', name: 'Salsa de Tomate en Botella 950ml', price: 1300.00 }, // Marca?
+                    { id: 'salsa_17', name: 'Tomate Pelado Entero Noel 400gr', price: 800.00 },
+                    { id: 'salsa_18', name: 'Salsa Botella 1kg Tuxedo', price: 1100.00 }, // Estaba en Condimentos
+                    { id: 'salsa_19', name: 'Salsa Botella 500g Tuxedo', price: 900.00 }, // Estaba en Condimentos
+                ]
+            }
+        ];
+        
+        
+        function getProductImageUrl(productName) {
+            const placeholderText = encodeURIComponent(productName.substring(0, 25).replace(/'/g, "").replace(/\//g, " ")); // Limitar y limpiar texto
+            return `https://placehold.co/300x300/EBF4FA/333333?text=${placeholderText.replace(/%/g, "")}`; // Evitar % en el texto final
+        }
+
+        // Asignar 'category' y 'imageUrl' a cada item
+        categorizedProducts.forEach(category => {
+            category.items.forEach(item => {
+                item.category = category.categoryName; 
+                if (!item.imageUrl) { 
+                  item.imageUrl = getProductImageUrl(item.name);
+                }
+            });
+        });
+        
+        let cart = [];
+        let allProductsFlat = []; 
+
+        function initializeAllProductsFlat() {
+            allProductsFlat = categorizedProducts.reduce((acc, category) => {
+                // Asegurar que cada item tenga su categoría asignada antes de aplanar
+                const itemsWithCategory = category.items.map(item => ({...item, category: category.categoryName }));
+                return acc.concat(itemsWithCategory);
+            }, []);
+        }
+
+
+        let productListElement, cartItemsElement, cartTotalElement, cartCountElement, 
+            cartModal, openCartButton, closeCartButton, clearCartButton, placeOrderButton, 
+            notificationElement, userIdDisplayElement, customerDataModalElement, 
+            closeCustomerDataModalButton, customerFormElement, submitOrderWithCustomerDataButton,
+            backToCategoriesButtonContainer;
+        
+        let currentView = 'categories'; 
+
+        function showNotification(message, type = 'success') {
+            if (!notificationElement) notificationElement = document.getElementById('notification');
+            if (!notificationElement) return; 
+
+            notificationElement.textContent = message;
+            notificationElement.className = 'fixed top-5 right-5 text-white px-6 py-3 rounded-lg shadow-md z-[100] text-sm transition-all duration-500 ease-in-out opacity-0 -translate-y-5';
+            
+            if (type === 'success') notificationElement.classList.add('bg-green-500');
+            else if (type === 'error') notificationElement.classList.add('bg-red-500');
+            else notificationElement.classList.add('bg-blue-500');
+            
+            notificationElement.classList.remove('hidden'); // Mostrar antes de animar
+            requestAnimationFrame(() => { // Forzar reflujo para la animación de entrada
+                 notificationElement.classList.remove('opacity-0', '-translate-y-5');
+                 notificationElement.classList.add('opacity-100', 'translate-y-0');
+            });
+
+
+            setTimeout(() => {
+                notificationElement.classList.remove('opacity-100', 'translate-y-0');
+                notificationElement.classList.add('opacity-0', '-translate-y-5');
+                setTimeout(() => {
+                    notificationElement.classList.add('hidden'); 
+                }, 500);
+            }, 3000);
+        }
+        
+        function renderCategoryLinks() {
+            if (!productListElement) productListElement = document.getElementById('productList');
+            if (!productListElement) return;
+            productListElement.innerHTML = ''; 
+            currentView = 'categories';
+            hideBackToCategoriesButton();
+
+            const categoriesTitle = document.createElement('h2');
+            categoriesTitle.textContent = 'Categorías de Productos';
+            categoriesTitle.className = 'text-3xl font-semibold text-gray-700 mb-8 text-center sm:text-left';
+            productListElement.appendChild(categoriesTitle);
+
+            const categoriesGrid = document.createElement('div');
+            categoriesGrid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6';
+            
+            categorizedProducts.forEach(category => {
+                const categoryCard = document.createElement('button');
+                categoryCard.className = 'bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 h-32 flex items-center justify-center text-center font-medium';
+                categoryCard.textContent = category.categoryName;
+                categoryCard.setAttribute('data-category', category.categoryName);
+                categoryCard.addEventListener('click', () => renderProductsForCategory(category.categoryName));
+                categoriesGrid.appendChild(categoryCard);
+            });
+            productListElement.appendChild(categoriesGrid);
+        }
+
+        function renderProductsForCategory(categoryName) {
+            if (!productListElement) productListElement = document.getElementById('productList');
+            if (!productListElement) return;
+            productListElement.innerHTML = ''; 
+            currentView = 'products';
+            showBackToCategoriesButton();
+
+            const category = categorizedProducts.find(cat => cat.categoryName === categoryName);
+            if (!category) {
+                productListElement.innerHTML = '<p class="text-gray-600 text-center">Categoría no encontrada.</p>';
+                return;
+            }
+
+            const categoryHeader = document.createElement('h2');
+            categoryHeader.textContent = category.categoryName;
+            categoryHeader.className = 'text-2xl sm:text-3xl font-semibold text-gray-700 mb-6 pb-2 border-b-2 border-blue-500';
+            productListElement.appendChild(categoryHeader);
+            
+            const productsGrid = document.createElement('div');
+            productsGrid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8'; // Increased gap-y
+
+            if (category.items.length === 0) {
+                productsGrid.innerHTML = '<p class="text-gray-500 col-span-full text-center">No hay productos en esta categoría.</p>';
+            } else {
+                category.items.forEach(product => {
+                    const productDiv = document.createElement('div');
+                    productDiv.className = 'bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col justify-between product-card';
+                    productDiv.innerHTML = `
+                        <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-48 object-contain rounded-md mb-4 bg-gray-50" onerror="this.onerror=null;this.src='https://placehold.co/300x300/cccccc/ffffff?text=Imagen%20no%20disponible';">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-2 product-name-clamp" title="${product.name}">${product.name}</h3>
+                            <p class="text-xl font-bold text-blue-600 mb-4">$${product.price.toFixed(2)}</p>
+                        </div>
+                        <button data-product-id="${product.id}" class="add-to-cart-btn mt-auto w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75">
+                            Agregar al Carrito
+                        </button>
+                    `;
+                    productsGrid.appendChild(productDiv);
+                });
+            }
+            productListElement.appendChild(productsGrid);
+
+            document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const productId = event.target.dataset.productId;
+                    addToCart(productId);
+                });
+            });
+        }
+        
+        function showBackToCategoriesButton() {
+            if (!backToCategoriesButtonContainer) backToCategoriesButtonContainer = document.getElementById('backToCategoriesButtonContainer');
+            if (backToCategoriesButtonContainer) backToCategoriesButtonContainer.classList.remove('hidden');
+        }
+
+        function hideBackToCategoriesButton() {
+             if (!backToCategoriesButtonContainer) backToCategoriesButtonContainer = document.getElementById('backToCategoriesButtonContainer');
+            if (backToCategoriesButtonContainer) backToCategoriesButtonContainer.classList.add('hidden');
+        }
+
+
+        function addToCart(productId) {
+            const product = allProductsFlat.find(p => p.id === productId);
+            if (!product) {
+                console.error("Producto no encontrado con ID:", productId);
+                return;
+            }
+
+            const cartItem = cart.find(item => item.id === productId);
+            if (cartItem) cartItem.quantity++;
+            else cart.push({ ...product, quantity: 1 });
+            
+            renderCart();
+            showNotification(`${product.name} agregado al carrito.`, 'info');
+        }
+
+        function removeFromCart(productId) {
+            const product = allProductsFlat.find(p => p.id === productId);
+            cart = cart.filter(item => item.id !== productId);
+            renderCart();
+            if (product) showNotification(`${product.name} eliminado del carrito.`, 'info');
+        }
+
+        function updateCartQuantity(productId, newQuantity) {
+            const cartItem = cart.find(item => item.id === productId);
+            if (cartItem) {
+                if (newQuantity <= 0) removeFromCart(productId);
+                else cartItem.quantity = newQuantity;
+            }
+            renderCart();
+        }
+        
+        function renderCart() {
+            if (!cartItemsElement) cartItemsElement = document.getElementById('cartItems');
+            if (!cartTotalElement) cartTotalElement = document.getElementById('cartTotal');
+            if (!cartCountElement) cartCountElement = document.getElementById('cartCount');
+            if (!cartItemsElement || !cartTotalElement || !cartCountElement) return;
+
+            cartItemsElement.innerHTML = '';
+            let total = 0;
+            let itemCount = 0;
+
+            if (cart.length === 0) {
+                cartItemsElement.innerHTML = '<p class="text-gray-600">Tu carrito está vacío.</p>';
+            } else {
+                cart.forEach(item => {
+                    const itemTotal = item.price * item.quantity;
+                    total += itemTotal;
+                    itemCount += item.quantity;
+                    const cartItemDiv = document.createElement('div');
+                    cartItemDiv.className = 'flex justify-between items-center py-3 border-b border-gray-200';
+                    cartItemDiv.innerHTML = `
+                        <div class="flex-grow pr-3">
+                            <h4 class="font-medium text-gray-800">${item.name}</h4>
+                            <p class="text-sm text-gray-500">$${item.price.toFixed(2)} x ${item.quantity}</p>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="number" min="1" value="${item.quantity}" data-product-id="${item.id}" class="quantity-input w-16 text-center border border-gray-300 rounded-md p-1 mr-2">
+                            <p class="font-semibold text-gray-700 w-20 text-right mr-3">$${itemTotal.toFixed(2)}</p>
+                            <button data-product-id="${item.id}" class="remove-from-cart-btn text-red-500 hover:text-red-700 font-semibold text-xl p-1 rounded-full leading-none">&times;</button>
+                        </div>`;
+                    cartItemsElement.appendChild(cartItemDiv);
+                });
+            }
+
+            cartTotalElement.textContent = `$${total.toFixed(2)}`;
+            cartCountElement.textContent = itemCount;
+            cartCountElement.classList.toggle('hidden', itemCount === 0);
+
+            document.querySelectorAll('.remove-from-cart-btn').forEach(button => button.addEventListener('click', (event) => removeFromCart(event.target.dataset.productId)));
+            document.querySelectorAll('.quantity-input').forEach(input => {
+                input.addEventListener('change', (event) => {
+                    const newQuantity = parseInt(event.target.value, 10);
+                    updateCartQuantity(event.target.dataset.productId, newQuantity);
+                });
+            });
+        }
+
+        function clearCartLocal() {
+            cart = [];
+            renderCart();
+            showNotification('Carrito vaciado.', 'info');
+        }
+
+        function openCustomerDataModal() {
+            if (!customerDataModalElement) customerDataModalElement = document.getElementById('customerDataModal');
+            if (customerDataModalElement) {
+                customerDataModalElement.classList.remove('hidden');
+                if(customerFormElement) customerFormElement.reset(); 
+                document.getElementById('customerName')?.focus();
+            }
+        }
+
+        function closeCustomerDataModal() {
+            if (!customerDataModalElement) customerDataModalElement = document.getElementById('customerDataModal');
+            if (customerDataModalElement) customerDataModalElement.classList.add('hidden');
+        }
+
+        async function handlePlaceOrderAttempt() {
+            if (!isAuthReady) {
+                showNotification("La autenticación aún se está inicializando. Por favor, espera un momento.", "error");
+                return;
+            }
+            if (cart.length === 0) {
+                showNotification('Tu carrito está vacío. Agrega productos antes de realizar un pedido.', 'error');
+                toggleCartModal(false); 
+                return;
+            }
+            toggleCartModal(false); 
+            openCustomerDataModal(); 
+        }
+        
+        async function submitFinalOrder(event) {
+            event.preventDefault(); // Prevent default form submission
+            if (!customerFormElement) customerFormElement = document.getElementById('customerForm');
+            if (!customerFormElement.checkValidity()) {
+                showNotification('Por favor, completa todos los campos obligatorios.', 'error');
+                customerFormElement.reportValidity(); 
+                return;
+            }
+
+            const customerName = document.getElementById('customerName').value;
+            const customerAddress = document.getElementById('customerAddress').value;
+            const customerPhone = document.getElementById('customerPhone').value;
+            const customerEmail = document.getElementById('customerEmail').value;
+            const customerNotes = document.getElementById('customerNotes').value;
+
+            if (!userId) {
+                userId = crypto.randomUUID(); 
+                console.warn("UserID no disponible, usando UUID temporal para el pedido:", userId);
+            }
+            
+            const orderTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            const orderItems = cart.map(item => ({ productId: item.id, name: item.name, price: item.price, quantity: item.quantity }));
+
+            const customerInfo = {
+                name: customerName,
+                address: customerAddress,
+                phone: customerPhone,
+                email: customerEmail || '', 
+                notes: customerNotes || ''
+            };
+
+            const orderData = {
+                userId: userId, 
+                items: orderItems,
+                totalAmount: orderTotal,
+                customerInfo: customerInfo,
+                status: 'pendiente',
+                createdAt: serverTimestamp(), 
+                appId: appId
+            };
+
+            if (!submitOrderWithCustomerDataButton) submitOrderWithCustomerDataButton = document.getElementById('submitOrderWithCustomerData');
+            submitOrderWithCustomerDataButton.disabled = true;
+            submitOrderWithCustomerDataButton.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Procesando...`;
+
+            try {
+                const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
+                const docRef = await addDoc(collection(db, ordersCollectionPath), orderData);
+                showNotification(`¡Pedido #${docRef.id.substring(0,6)} realizado con éxito! Tus datos han sido registrados.`, 'success');
+                clearCartLocal();
+                closeCustomerDataModal();
+            } catch (error) {
+                console.error("Error al realizar el pedido final: ", error);
+                 if (error.code === 'permission-denied') {
+                    showNotification('Error de permisos al guardar el pedido. Contacta al administrador.', 'error');
+                } else {
+                    showNotification(`Error al realizar el pedido: ${error.message}`, 'error');
+                }
+            } finally {
+                submitOrderWithCustomerDataButton.disabled = false;
+                submitOrderWithCustomerDataButton.textContent = 'Confirmar Pedido';
+            }
+        }
+
+
+        function toggleCartModal(show) {
+            if (!cartModal) cartModal = document.getElementById('cartModal');
+            if (cartModal) {
+                 if (show === undefined) cartModal.classList.toggle('hidden');
+                 else if (show) cartModal.classList.remove('hidden');
+                 else cartModal.classList.add('hidden');
+                 
+                if (!cartModal.classList.contains('hidden')) {
+                    cartModal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus();
+                }
+            }
+        }
+        
+        function updateUserIdDisplay() {
+            if (!userIdDisplayElement) userIdDisplayElement = document.getElementById('userIdDisplay');
+            if (userIdDisplayElement) {
+                if (isAuthReady && userId) userIdDisplayElement.textContent = `ID Sesión: ${userId.substring(0, 8)}...`;
+                else if (isAuthReady && !userId) userIdDisplayElement.textContent = `ID Sesión: (Anónimo)`;
+                else userIdDisplayElement.textContent = 'ID Sesión: (Cargando...)';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            productListElement = document.getElementById('productList');
+            cartItemsElement = document.getElementById('cartItems');
+            cartTotalElement = document.getElementById('cartTotal');
+            cartCountElement = document.getElementById('cartCount');
+            cartModal = document.getElementById('cartModal');
+            openCartButton = document.getElementById('openCartButton');
+            closeCartButton = document.getElementById('closeCartButton');
+            clearCartButton = document.getElementById('clearCartButton');
+            placeOrderButton = document.getElementById('placeOrderButton'); // Este es el botón en el modal del carrito
+            notificationElement = document.getElementById('notification');
+            userIdDisplayElement = document.getElementById('userIdDisplay');
+            customerDataModalElement = document.getElementById('customerDataModal');
+            closeCustomerDataModalButton = document.getElementById('closeCustomerDataModal');
+            customerFormElement = document.getElementById('customerForm');
+            submitOrderWithCustomerDataButton = document.getElementById('submitOrderWithCustomerData');
+            backToCategoriesButtonContainer = document.getElementById('backToCategoriesButtonContainer');
+            const backToCategoriesBtn = document.getElementById('backToCategoriesBtn');
+
+
+            initializeAllProductsFlat(); 
+            renderCategoryLinks(); // Mostrar categorías al inicio
+            renderCart(); 
+
+            if(openCartButton) openCartButton.addEventListener('click', () => toggleCartModal(true));
+            if(closeCartButton) closeCartButton.addEventListener('click', () => toggleCartModal(false));
+            if(clearCartButton) clearCartButton.addEventListener('click', clearCartLocal);
+            
+            // El botón "Realizar Pedido" del modal del carrito ahora abre el modal de datos del cliente
+            if(placeOrderButton) placeOrderButton.addEventListener('click', handlePlaceOrderAttempt); 
+
+            if(closeCustomerDataModalButton) closeCustomerDataModalButton.addEventListener('click', closeCustomerDataModal);
+            if(submitOrderWithCustomerDataButton) submitOrderWithCustomerDataButton.addEventListener('click', submitFinalOrder);
+            if(backToCategoriesBtn) backToCategoriesBtn.addEventListener('click', renderCategoryLinks);
+            
+            updateUserIdDisplay();
+        });
+
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0f2f5; }
+        #cartItemsContainer::-webkit-scrollbar, #customerDataFormContainer::-webkit-scrollbar { width: 8px; }
+        #cartItemsContainer::-webkit-scrollbar-track, #customerDataFormContainer::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        #cartItemsContainer::-webkit-scrollbar-thumb, #customerDataFormContainer::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        #cartItemsContainer::-webkit-scrollbar-thumb:hover, #customerDataFormContainer::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        .product-card img { transition: transform 0.3s ease-in-out; }
+        .product-card:hover img { transform: scale(1.05); }
+        
+        #notification {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        #notification.opacity-100 { /* Clase para cuando está visible */
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .quantity-input { -moz-appearance: textfield; }
+        .quantity-input::-webkit-outer-spin-button,
+        .quantity-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        .site-logo { max-height: 60px; width: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1)) drop-shadow(0 1px 1px rgba(0,0,0,0.06)); }
+        @media (max-width: 640px) { .site-logo { max-height: 45px; } }
+        
+        .product-name-clamp {
+            display: -webkit-box;
+            -webkit-line-clamp: 2; 
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            height: 3.2em; 
+            line-height: 1.6em; 
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="notification" class="fixed top-5 right-5 text-white px-6 py-3 rounded-lg shadow-md z-[100] text-sm transition-all duration-500 ease-in-out opacity-0 -translate-y-5 hidden"></div>
+
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md sticky top-0 z-40">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <a href="#" aria-label="Página de inicio de Deposito Yndol" onclick="document.dispatchEvent(new Event('DOMContentLoaded')); return false;"> <!-- Recargar categorías al clickear logo -->
+                    <img src="image_abe455.png" alt="Logo Deposito Yndol" class="site-logo">
+                </a>
+                <div class="flex items-center">
+                     <div id="userIdDisplay" class="text-xs mr-2 sm:mr-4 px-2 py-1 bg-white/20 rounded-md hidden sm:block">ID Sesión: (Cargando...)</div>
+                    <button id="openCartButton" aria-label="Abrir carrito de compras" class="relative flex items-center p-2 rounded-full hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
+                        <span id="cartCount" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center hidden" aria-live="polite">0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div id="backToCategoriesButtonContainer" class="mb-6 hidden">
+            <button id="backToCategoriesBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400">
+                &larr; Volver a Categorías
+            </button>
+        </div>
+        <div id="productList"> 
+             <p class="text-gray-500 col-span-full text-center text-xl py-10">Cargando categorías...</p>
+        </div>
+    </main>
+
+    <!-- Cart Modal -->
+    <div id="cartModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 hidden p-4" role="dialog" aria-modal="true" aria-labelledby="cartModalTitle">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200">
+                <h3 id="cartModalTitle" class="text-2xl font-semibold text-gray-800">Tu Pedido</h3>
+                <button id="closeCartButton" aria-label="Cerrar carrito" class="text-gray-500 hover:text-gray-800 transition-colors p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <div id="cartItemsContainer" class="p-6 space-y-4 overflow-y-auto flex-grow">
+                <div id="cartItems"><p class="text-gray-600">Cargando carrito...</p></div>
+            </div>
+            <div class="p-6 border-t border-gray-200 bg-gray-50">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xl font-semibold text-gray-700">Total:</span>
+                    <span id="cartTotal" class="text-2xl font-bold text-blue-600">$0.00</span>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button id="clearCartButton" class="w-full sm:w-auto flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors duration-300">Vaciar Carrito</button>
+                    <button id="placeOrderButton" class="w-full sm:w-auto flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-300 flex items-center justify-center">Realizar Pedido</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Data Modal -->
+    <div id="customerDataModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-[60] hidden p-4" role="dialog" aria-modal="true" aria-labelledby="customerDataModalTitle">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200">
+                <h3 id="customerDataModalTitle" class="text-2xl font-semibold text-gray-800">Completa tus Datos para el Pedido</h3>
+                <button id="closeCustomerDataModal" aria-label="Cerrar" class="text-gray-500 hover:text-gray-800 transition-colors p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <div id="customerDataFormContainer" class="p-6 space-y-4 overflow-y-auto flex-grow">
+                <form id="customerForm" class="space-y-4">
+                    <div>
+                        <label for="customerName" class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo <span class="text-red-500">*</span></label>
+                        <input type="text" name="customerName" id="customerName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="customerAddress" class="block text-sm font-medium text-gray-700 mb-1">Dirección de Entrega <span class="text-red-500">*</span></label>
+                        <input type="text" name="customerAddress" id="customerAddress" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="customerPhone" class="block text-sm font-medium text-gray-700 mb-1">Teléfono <span class="text-red-500">*</span></label>
+                        <input type="tel" name="customerPhone" id="customerPhone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Ej: 2613379745">
+                    </div>
+                    <div>
+                        <label for="customerEmail" class="block text-sm font-medium text-gray-700 mb-1">Email (Opcional)</label>
+                        <input type="email" name="customerEmail" id="customerEmail" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                     <div>
+                        <label for="customerNotes" class="block text-sm font-medium text-gray-700 mb-1">Notas Adicionales (Opcional)</label>
+                        <textarea name="customerNotes" id="customerNotes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="p-6 border-t border-gray-200 bg-gray-50">
+                <button id="submitOrderWithCustomerData" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-300 flex items-center justify-center">Confirmar Pedido</button>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="bg-gray-800 text-gray-300 py-10 mt-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p>&copy; <span id="currentYear"></span> Deposito Yndol. Todos los derechos reservados.</p>
+            <p class="text-sm mt-1">Construido con cariño para tus compras.</p>
+        </div>
+        <script>document.getElementById('currentYear').textContent = new Date().getFullYear();</script>
+    </footer>
+
+</body>
+</html>
